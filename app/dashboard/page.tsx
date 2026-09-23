@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/enums";
 import CircularProgress, { progressColor } from "./tasks/CircularProgress";
+import StatusIcon from "./StatusIcon";
 
 export default async function DashboardPage() {
   const agent = await getCurrentAgent();
@@ -122,9 +124,26 @@ export default async function DashboardPage() {
 
       <div className="field-grid field-grid-4" style={{ marginBottom: 20 }}>
         {TASK_STATUSES.map((status) => (
-          <div className="card" key={status}>
-            <p style={statTitleStyle}>{TASK_STATUS_LABELS[status]}</p>
-            <p style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{countByStatus[status] || 0}</p>
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }} key={status}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                color: TASK_STATUS_COLORS[status],
+                background: `color-mix(in srgb, ${TASK_STATUS_COLORS[status]} 14%, transparent)`,
+              }}
+            >
+              <StatusIcon status={status} />
+            </div>
+            <div>
+              <p style={statTitleStyle}>{TASK_STATUS_LABELS[status]}</p>
+              <p style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{countByStatus[status] || 0}</p>
+            </div>
           </div>
         ))}
       </div>

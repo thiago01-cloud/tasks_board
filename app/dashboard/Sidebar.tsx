@@ -18,7 +18,9 @@ export default function Sidebar({ agent }: { agent: Agent }) {
     <>
       {/* Bar visible only on mobile/tablet (see globals.css) */}
       <div className="mobile-bar">
-        <Logo light />
+        <div className="mobile-bar-brand">
+          <Logo light companyName={agent.companyName} />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <NotificationBell />
           <button
@@ -50,7 +52,7 @@ export default function Sidebar({ agent }: { agent: Agent }) {
         </button>
 
         <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Logo light />
+          <Logo light companyName={agent.companyName} />
           <NotificationBell />
         </div>
 

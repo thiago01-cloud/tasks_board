@@ -1227,6 +1227,14 @@ input, select, textarea, button {
     color: white;
   }
 
+  .mobile-bar-brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1;
+    margin-right: 8px;
+  }
+
   .sidebar {
     position: fixed;
     top: 0;

@@ -6,14 +6,20 @@ import { APP_NAME } from "@/lib/constants";
 export default function Logo({
   size = "normal",
   light = false,
+  companyName,
 }: {
   size?: "normal" | "large";
   light?: boolean;
+  // When set (dashboard sidebar/mobile bar, where a company is always in
+  // context), the company's name takes the primary spot and APP_NAME
+  // becomes a small subtitle underneath, instead of the plain wordmark.
+  companyName?: string;
 }) {
   const isLarge = size === "large";
   const textColor = light ? "#ffffff" : "var(--color-primary)";
   const accentColor = "var(--color-accent)";
   const checkColor = light ? "#ffffff" : "var(--color-primary)";
+  const subtitleColor = light ? "rgba(255, 255, 255, 0.6)" : "var(--color-text-muted)";
 
   return (
     <div
@@ -21,6 +27,7 @@ export default function Logo({
         display: "flex",
         alignItems: "center",
         gap: isLarge ? 12 : 9,
+        minWidth: 0,
       }}
     >
       <svg
@@ -40,18 +47,47 @@ export default function Logo({
           opacity={light ? 0.9 : 1}
         />
       </svg>
-      <span
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 700,
-          fontSize: isLarge ? 26 : 20,
-          letterSpacing: "0.01em",
-          color: textColor,
-          lineHeight: 1,
-        }}
-      >
-        {APP_NAME}
-      </span>
+      {companyName ? (
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.2 }}>
+          <span
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontWeight: 700,
+              fontSize: isLarge ? 20 : 15,
+              color: textColor,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {companyName}
+          </span>
+          <span
+            style={{
+              fontSize: isLarge ? 11 : 9.5,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: subtitleColor,
+            }}
+          >
+            {APP_NAME}
+          </span>
+        </div>
+      ) : (
+        <span
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontWeight: 700,
+            fontSize: isLarge ? 26 : 20,
+            letterSpacing: "0.01em",
+            color: textColor,
+            lineHeight: 1,
+          }}
+        >
+          {APP_NAME}
+        </span>
+      )}
     </div>
   );
 }

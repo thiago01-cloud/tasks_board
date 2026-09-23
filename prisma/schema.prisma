@@ -56,6 +56,10 @@ model User {
   @@map("users")
 }
 
+// Deleting a Company cascades to everything scoped to it (agents, tasks
+// and their subtasks/assignments/comments/notifications, groups) via
+// `onDelete: Cascade` on each child relation below — see DELETE
+// /api/companies/[id]. It does NOT cascade to the owning User.
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -82,7 +86,7 @@ model Company {
 model Group {
   id        String   @id @default(cuid())
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name      String
   createdAt DateTime @default(now())
 
@@ -106,7 +110,7 @@ model Agent {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   role      String   @default("MEMBER") // "ADMIN" | "MANAGER" | "MEMBER" (scoped to this company)
   // Implicit many-to-many (Prisma manages the join table) — an agent can
   // be in zero, one, or several groups.
@@ -125,7 +129,7 @@ model Agent {
 model Task {
   id          String    @id @default(cuid())
   companyId   String
-  company     Company   @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   title       String
   description String?
   status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED"
@@ -170,7 +174,7 @@ model Task {
 model Subtask {
   id        String   @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   title     String
   weight    Int      @default(0) // percentage points (0-100), all of one task's subtasks sum to 100
   done      Boolean  @default(false)
@@ -182,9 +186,9 @@ model Subtask {
 
 model Assignment {
   taskId     String
-  task       Task     @relation(fields: [taskId], references: [id])
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   agentId    String
-  agent      Agent    @relation(fields: [agentId], references: [id])
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   assignedAt DateTime @default(now())
 
   @@id([taskId, agentId])
@@ -194,9 +198,9 @@ model Assignment {
 model Comment {
   id        String   @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   authorId  String
-  author    Agent    @relation(fields: [authorId], references: [id])
+  author    Agent    @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content   String
   createdAt DateTime @default(now())
 
@@ -206,10 +210,10 @@ model Comment {
 model Notification {
   id        String   @id @default(cuid())
   agentId   String
-  agent     Agent    @relation(fields: [agentId], references: [id])
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   type      String
   taskId    String?
-  task      Task?    @relation(fields: [taskId], references: [id])
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 

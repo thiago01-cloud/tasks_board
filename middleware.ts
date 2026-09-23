@@ -15,6 +15,14 @@ import type { SessionPayload } from "./lib/auth";
 
 const PUBLIC_PAGES = ["/", "/login", "/signup"];
 const PRE_SESSION_PAGES = ["/login/choose-company", "/create-company"];
+// Subset of PRE_SESSION_PAGES a fully connected account should be bounced
+// away from — choosing a company only makes sense before a session
+// exists. "/create-company" is deliberately left out: a fully connected
+// account can still create an ADDITIONAL company from the "Mes
+// entreprises" switcher (see POST /api/companies), so that page must stay
+// reachable once logged in too — otherwise the switcher's "+ Créer une
+// entreprise" link just bounces straight back to /dashboard.
+const CHOOSE_COMPANY_PAGE = "/login/choose-company";
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -52,8 +60,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // A fully connected account has nothing to do on public/login/signup
-  // pages, nor on pre-session pages.
-  if ((PUBLIC_PAGES.includes(pathname) || PRE_SESSION_PAGES.includes(pathname)) && isLoggedIn) {
+  // pages, nor on the "choose a company" pre-session page.
+  if ((PUBLIC_PAGES.includes(pathname) || pathname === CHOOSE_COMPANY_PAGE) && isLoggedIn) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";

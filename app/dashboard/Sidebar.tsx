@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Logo from "../components/Logo";
 import NavLinks from "./NavLinks";
 import LogoutButton from "./LogoutButton";
-import CompanySwitcher from "./CompanySwitcher";
 import NotificationBell from "./NotificationBell";
 import { AGENT_ROLE_LABELS } from "@/lib/enums";
 import type { getCurrentAgent } from "@/lib/auth";
@@ -59,7 +59,17 @@ export default function Sidebar({ agent }: { agent: Agent }) {
         <NavLinks isAdmin={agent.role === "ADMIN"} onNavigate={() => setOpen(false)} />
 
         <div className="sidebar-footer">
-          <CompanySwitcher companyName={agent.companyName} companyId={agent.companyId} />
+          {/* Full management page (list/rename/delete/create) instead of a
+              dropdown — see app/dashboard/companies. */}
+          <Link
+            href="/dashboard/companies"
+            className="company-switcher-trigger"
+            style={{ display: "flex", textDecoration: "none", marginBottom: 10 }}
+            onClick={() => setOpen(false)}
+          >
+            <span className="company-switcher-label">Mes entreprises</span>
+            <span className="company-switcher-name">{agent.companyName}</span>
+          </Link>
           <p className="agent-name">
             {agent.fullName}
             <br />

@@ -1,0 +1,1466 @@
+@import "tailwindcss";
+
+:root {
+  /* "TASKS" palette: deep indigo + amber accent on a light neutral background */
+  --color-background: #f5f6fa;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8f9fc;
+  --color-border: #dfe3ea;
+  --color-text: #1a1d29;
+  --color-text-muted: #6b7280;
+
+  --color-primary: #2a3365;
+  --color-primary-hover: #1e2450;
+  --color-primary-tint: #eaecfb;
+
+  --color-accent: #f59e0b;
+  --color-accent-tint: #fef3c7;
+
+  --color-danger: #b3261e;
+  --color-danger-tint: #fbe9e7;
+
+  --color-success: #1a8a4c;
+  --color-success-tint: #e3f4ea;
+
+  --radius: 10px;
+  --radius-lg: 16px;
+  --card-shadow: 0 1px 2px rgba(26, 29, 41, 0.04), 0 10px 28px -16px rgba(26, 29, 41, 0.22);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.site-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 16px 20px 22px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 12px;
+}
+
+a {
+  color: inherit;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--color-text);
+}
+
+h1 { font-size: 26px; }
+h2 { font-size: 21px; }
+h3 { font-size: 17px; }
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ---------- Forms ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+
+.field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
+}
+
+/* ---------- Custom select (trigger shows a short value, e.g. a dial
+   code, while the open panel lists the full label for each option —
+   not possible with a native <select>, which shows the same text in
+   both places) ---------- */
+
+.phone-field {
+  position: relative;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  padding: 10px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-trigger:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
+}
+
+.custom-select-placeholder {
+  color: var(--color-text-muted);
+}
+
+.custom-select-panel {
+  position: absolute;
+  /* Above the dashboard's mobile chrome (sidebar/overlay/sticky top bar,
+     z-index up to 40) so it's never hidden behind them when opened from a
+     form inside the dashboard on a small screen. */
+  z-index: 50;
+  top: calc(100% + 4px);
+  /* Spans the whole row (country + phone), not just the narrow trigger —
+     that row is already sized safely for any screen, so the panel can't
+     overflow past it. */
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 4px;
+  margin: 0;
+  list-style: none;
+}
+
+.custom-select-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: calc(var(--radius) - 3px);
+  font-size: 13.5px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.custom-select-option:hover,
+.custom-select-option[aria-selected="true"] {
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+}
+
+/* ---------- Buttons ---------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.button:hover {
+  background: var(--color-primary-hover);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.button-secondary:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-text-muted);
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--card-shadow);
+}
+
+.error-message {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin-top: -6px;
+  margin-bottom: 12px;
+}
+
+/* ---------- Dashboard layout ---------- */
+
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background: var(--color-primary);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo {
+  margin: 2px 6px 28px;
+}
+
+.dashboard-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.nav-link {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border-left-color: var(--color-accent);
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+.agent-name {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 10px 12px;
+}
+
+.agent-name .badge {
+  margin-top: 4px;
+}
+
+/* ---------- "Mes entreprises" switcher (sidebar footer) ---------- */
+
+.company-switcher {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.company-switcher-trigger {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.company-switcher-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.company-switcher-trigger:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.company-switcher-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.company-switcher-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: white;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Opens upward: the trigger sits near the bottom of a tall sidebar, so a
+   panel dropping down would often overflow past the viewport. */
+.company-switcher-panel {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.main-content {
+  flex: 1;
+  /* Flex items default to min-width: auto, i.e. they refuse to shrink
+     below their widest content (here, e.g. a data table) even when that
+     content has its own overflow-x: auto scroller — the item itself gets
+     pushed wide first, dragging the whole page into horizontal scroll on
+     mobile before the inner scroller ever gets a chance to do its job. */
+  min-width: 0;
+  padding: 32px 40px;
+  max-width: 1140px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  border: 1px solid transparent;
+}
+
+.sidebar-footer .badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Tables ---------- */
+
+.table-container {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.two-column-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Same min-width: auto trap as flex items — a plain 1fr grid track won't
+   shrink its item (the .card wrapping the members table) below the
+   table's content width, so the table's own overflow-x: auto scroller
+   never engages and the whole page scrolls horizontally instead. Applies
+   just as much once the grid collapses to a single column on mobile. */
+.two-column-grid > * {
+  min-width: 0;
+}
+
+/* ---------- Responsive form field grids ---------- */
+
+.field-grid {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+/* Grid items default to min-width: auto, which refuses to shrink below the
+   content's intrinsic size (e.g. a text input's default character width) —
+   this is what makes fields overflow their column instead of wrapping.
+   Force them back to a shrinkable min-width. */
+.field-grid > * {
+  min-width: 0;
+}
+
+.field-grid-2 { grid-template-columns: 1fr 1fr; }
+.field-grid-2-large { grid-template-columns: 2fr 1fr; }
+.field-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.field-grid-4 { grid-template-columns: repeat(4, 1fr); }
+/* Narrow fixed-width first column (e.g. a dial code trigger showing at
+   most "+998") next to a field that should take the rest of the row. */
+.field-grid-narrow-first { grid-template-columns: 76px 1fr; }
+
+/* ---------- Task board ---------- */
+
+.task-board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.task-filter-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+
+.task-filter-tab {
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  border-radius: calc(var(--radius) - 3px);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.task-filter-tab.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--card-shadow);
+}
+
+/* Horizontal scroll wrapper: on mobile the board switches to one
+   swipeable column at a time (see the media query below) rather than
+   squeezing four columns into unreadable slivers. */
+.task-board-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.task-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.task-column {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 80px;
+}
+
+.task-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+
+.task-column-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.task-column-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.task-card {
+  display: block;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--card-shadow);
+}
+
+.task-card:hover {
+  border-color: var(--color-primary);
+}
+
+.task-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--color-text);
+}
+
+.task-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-card-due {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.task-card-due.overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* ---------- Progress (avancement) ---------- */
+
+.progress-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 999px;
+  transition: width 0.15s ease;
+}
+
+/* Ring shown right after a task's title while it's IN_PROGRESS — see
+   CircularProgress.tsx. Inline so it sits on the same line as the text. */
+.circular-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.circular-progress svg circle {
+  transition: stroke-dashoffset 0.2s ease;
+}
+
+.circular-progress-label {
+  position: absolute;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.progress-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-editor input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-primary);
+}
+
+.progress-editor-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary);
+  min-width: 38px;
+  text-align: right;
+}
+
+.task-empty-column {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 10px 4px;
+  margin: 0;
+}
+
+.avatar-stack {
+  display: flex;
+}
+
+.avatar-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-surface);
+  margin-left: -8px;
+}
+
+.avatar-circle:first-child {
+  margin-left: 0;
+}
+
+.avatar-circle-more {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+
+/* ---------- Comments ---------- */
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.comment-item {
+  padding: 10px 12px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+
+.comment-author {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 3px;
+}
+
+.comment-date {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.comment-content {
+  font-size: 13.5px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ---------- Checkbox list (e.g. task assignees) ---------- */
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--color-text);
+}
+
+/* One existing group in GroupManager's list: name + Modifier/Supprimer.
+   flex-wrap lets the actions drop to their own line instead of forcing
+   the row wider than its card on narrow screens, and the name breaks
+   even a single long word (a one-word group name like "Approvisionnement")
+   rather than push the row's min width past the viewport. */
+.group-list-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.group-list-name {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: 13.5px;
+}
+
+.group-list-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ---------- Assignee picker (task create/edit — members + groups) ---------- */
+
+.assignee-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.assignee-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.assignee-chip:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.assignee-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.assignee-chip[data-active="true"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+/* Group chips sit in their own row above the member grid, styled dashed
+   so they read as "shortcut" controls rather than individual picks —
+   solid (and accent-colored) once active, matching the badge/priority
+   accent used elsewhere. */
+.assignee-chip-group {
+  border-style: dashed;
+  font-weight: 600;
+}
+
+.assignee-chip-group[data-active="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  border-style: solid;
+  color: white;
+}
+
+.assignee-chip-count {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* Person icon on member chips vs. people icon on group chips — quick
+   visual cue that doesn't rely on the dashed border alone. */
+.assignee-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* ---------- Mobile sidebar ---------- */
+
+.mobile-bar {
+  display: none;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+}
+
+.icon-button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- Notification bell (sidebar + mobile bar) ---------- */
+
+.notification-bell {
+  position: relative;
+  /* Both places this renders (.sidebar-logo, .mobile-bar) sit on the dark
+     sidebar background, so the bell icon needs to be light — same
+     treatment .mobile-bar .icon-button already gets. */
+  color: white;
+}
+
+.notification-bell .icon-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.notification-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(340px, 88vw);
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  z-index: 50;
+  padding: 4px;
+}
+
+.notification-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 6px;
+}
+
+.notification-item {
+  display: block;
+  padding: 9px 10px;
+  border-radius: calc(var(--radius) - 3px);
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.notification-item:hover {
+  background: var(--color-surface-alt);
+}
+
+.notification-item[data-unread="true"] {
+  background: var(--color-primary-tint);
+}
+
+.notification-item[data-unread="true"]:hover {
+  background: var(--color-primary-tint);
+  filter: brightness(0.97);
+}
+
+.notification-item-title {
+  margin: 0 0 2px;
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-item-meta {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.mobile-close-button {
+  display: none;
+}
+
+.mobile-overlay {
+  display: none;
+}
+
+/* ---------- Landing page ---------- */
+
+.floating-buttons {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 50;
+  display: flex;
+  gap: 10px;
+}
+
+/* ---------- Team page: floating shortcut buttons ---------- */
+
+/* Anchor target for the FAB shortcuts below — offsets the landing spot so
+   smooth-scrolling to a form doesn't tuck it under the sticky mobile top
+   bar (.mobile-bar, ~48px tall plus breathing room). */
+.scroll-target {
+  scroll-margin-top: 90px;
+}
+
+.team-fab-row {
+  position: fixed;
+  bottom: 22px;
+  right: 24px;
+  /* Below the sidebar/overlay (z-index up to 40) so an open mobile sidebar
+     naturally covers these instead of floating above the dimmed backdrop. */
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.team-fab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-primary);
+  color: white;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.team-fab-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.team-fab-button-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+/* Icon-only circular variant, used for the "back to top" shortcut — no
+   label to show or hide, so it stays the same compact size at every
+   breakpoint instead of following the icon-only collapse below. */
+.team-fab-button-round {
+  padding: 12px;
+  gap: 0;
+}
+
+@media (max-width: 480px) {
+  /* Icon-only pills on very narrow phones so the pair never competes with
+     page content for width or risks its own horizontal overflow. */
+  .team-fab-button {
+    padding: 12px;
+    gap: 0;
+  }
+
+  .team-fab-button span {
+    display: none;
+  }
+}
+
+.home-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-header {
+  padding: 100px 24px 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  background: radial-gradient(circle at 50% 0%, var(--color-primary-tint) 0%, var(--color-background) 60%);
+}
+
+.home-title {
+  font-size: 40px;
+  max-width: 720px;
+  line-height: 1.15;
+}
+
+.home-subtitle {
+  font-size: 16px;
+  color: var(--color-text-muted);
+  max-width: 560px;
+  margin: 0;
+}
+
+.home-cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.home-section {
+  padding: 60px 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.section-title {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.section-subtitle {
+  text-align: center;
+  color: var(--color-text-muted);
+  margin: 0 auto 40px;
+  max-width: 520px;
+  font-size: 14px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.step-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  box-shadow: var(--card-shadow);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-number {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-accent-tint);
+}
+
+.step-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-primary-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.final-cta {
+  background: var(--color-primary);
+  color: white;
+  text-align: center;
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.final-cta h2 {
+  color: white;
+}
+
+.final-cta p {
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  max-width: 480px;
+}
+
+/* ---------- Responsive: tablet and mobile ---------- */
+
+@media (max-width: 880px) {
+  .two-column-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--color-primary);
+    padding: 12px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .mobile-bar .icon-button {
+    color: white;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: min(78vw, 300px);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 40;
+    overflow-y: auto;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-logo {
+    display: none;
+  }
+
+  .mobile-close-button {
+    display: inline-flex;
+    align-self: flex-end;
+    color: white;
+    margin-bottom: 12px;
+  }
+
+  .mobile-overlay.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 16, 0.45);
+    z-index: 35;
+  }
+
+  .main-content {
+    padding: 20px 16px 40px;
+    max-width: 100%;
+  }
+
+  /* Swipeable columns, one mostly-visible at a time, instead of four
+     squeezed-down slivers. */
+  .task-board {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-auto-columns: minmax(260px, 78vw);
+  }
+}
+
+@media (max-width: 640px) {
+  .field-grid-2,
+  .field-grid-2-large,
+  .field-grid-3,
+  .field-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .floating-buttons {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    justify-content: flex-end;
+  }
+
+  .home-header {
+    padding: 84px 18px 50px;
+  }
+
+  .home-title {
+    font-size: 28px;
+  }
+
+  .steps-grid,
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Subtasks (task detail — SubtaskList.tsx) ---------- */
+
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.subtask-item:last-child {
+  border-bottom: none;
+}
+
+.subtask-checkbox {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.subtask-checkbox:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.subtask-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.subtask-item[data-done="true"] .subtask-checkbox {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.subtask-title {
+  flex: 1;
+  font-size: 14px;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.subtask-item[data-done="true"] .subtask-title {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.subtask-weight {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-primary-tint);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.subtask-delete {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.subtask-delete:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-tint);
+}
+
+.subtask-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.subtask-reweight-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13.5px;
+}
+
+.subtask-reweight-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ---------- Confirmation dialog (ConfirmProvider.tsx) ----------
+   A small "are you sure?" step used across the app (logout, validating a
+   subtask, changing a task's status, every delete) instead of firing the
+   action immediately. Sits above everything else (sidebar, panels...). */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 16, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  padding: 20px;
+}
+
+.confirm-dialog-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.confirm-dialog-message {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

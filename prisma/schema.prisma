@@ -1,0 +1,217 @@
+// TASKS — database schema.
+//
+// Deployed on PostgreSQL (Neon). Was SQLite during local-only development
+// (see git history) — "enum" fields (role, status, priority...) stayed
+// String rather than being converted to native Postgres enums: they were
+// already validated in code (API routes) against a fixed list, native
+// enums would need a migration of their own with no real benefit yet, and
+// keeping them as String avoids widening this first deploy's risk. Can
+// still be revisited later if needed.
+//
+// Two connection strings (see .env.example), both provided automatically
+// by the Vercel↔Neon integration (Storage tab): `url` is the pooled one
+// (PgBouncer) used at runtime by the app; `directUrl` is the unpooled one
+// (Vercel names it DATABASE_URL_UNPOOLED), used only by
+// `prisma migrate`/`prisma db push` — Prisma Migrate doesn't work
+// reliably through a connection pooler.
+//
+// Accounts/companies follow the same pattern as houses: a "User" is a
+// pure login account, "Company" is owned directly by a User (ownerId),
+// and "Agent" links a User to a Company as staff, with a role scoped to
+// that company. A User can own several Companies and/or be an Agent in
+// others — see the signup/login flow in the specs doc for the full
+// process.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// ---------- Models ----------
+
+// Login account, independent of any company (mirrors "Account" in houses).
+model User {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  country      String // ISO 3166-1 alpha-2 (e.g. "CI", "FR") — see lib/countries.ts
+  // International format, e.g. "+225XXXXXXXXX" (composed at signup from the
+  // chosen country's dial code + the locally-typed number — see
+  // composeInternationalPhone() in lib/phone.ts). Also the number used for
+  // WhatsApp alerts, so it must stay a real, reachable number.
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  ownedCompanies Company[] @relation("CompanyOwner")
+  agentRoles     Agent[]
+
+  @@map("users")
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+
+  ownerId String
+  owner   User   @relation("CompanyOwner", fields: [ownerId], references: [id])
+
+  agents Agent[]
+  tasks  Task[]
+  groups Group[]
+
+  @@map("companies")
+}
+
+// A team/department within a company (e.g. "Ventes", "Support") — used to
+// group agents for reporting (see the dashboard's per-group progress
+// section) and, later, could gate task visibility. Membership is set when
+// the group is created and can be changed afterward — an agent can belong
+// to several groups at once (implicit many-to-many below), and one with
+// no group at all is shown as "Sans groupe" rather than being required to
+// join one.
+model Group {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+
+  agents Agent[]
+  // Tasks explicitly assigned to this group (the group chip was used on
+  // that task, not merely "some of its members happen to be individually
+  // assigned") — see Task.assignedGroups and the dashboard's per-group
+  // progress, which relies on this relation rather than inferring group
+  // membership from individual assignments.
+  assignedTasks Task[]
+
+  @@map("groups")
+}
+
+// Links a User to a Company as staff, with the role scoped to that
+// company. Being the Company owner is a separate, direct relation
+// (Company.ownerId) — an owner may also hold an Agent record in their own
+// company (e.g. to be assignable on tasks) while keeping full access.
+model Agent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  role      String   @default("MEMBER") // "ADMIN" | "MANAGER" | "MEMBER" (scoped to this company)
+  // Implicit many-to-many (Prisma manages the join table) — an agent can
+  // be in zero, one, or several groups.
+  groups    Group[]
+  joinedAt  DateTime @default(now())
+
+  createdTasks  Task[]         @relation("TaskCreator")
+  assignments   Assignment[]
+  comments      Comment[]
+  notifications Notification[]
+
+  @@unique([userId, companyId])
+  @@map("agents")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  title       String
+  description String?
+  status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED"
+  priority    String    @default("NORMAL") // "LOW" | "NORMAL" | "HIGH" | "URGENT"
+  progress    Int       @default(0) // 0-100, edited mainly while status is IN_PROGRESS; set to 100 automatically when status becomes DONE
+  dueDate     DateTime?
+  creatorId   String
+  creator     Agent     @relation("TaskCreator", fields: [creatorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  assignments   Assignment[]
+  comments      Comment[]
+  notifications Notification[]
+  // Checkable steps this task has been broken down into — see Subtask's
+  // own comment. Once this is non-empty, `progress` is derived from these
+  // (sum of DONE subtasks' weight) rather than settable by hand.
+  subtasks      Subtask[]
+  // Groups this task is explicitly assigned to — distinct from
+  // `assignments`, which is per-agent. Assigning a task to individual
+  // agents who happen to belong to a group does NOT add it here; only
+  // picking the group itself (its chip in AssigneePicker) does. This is
+  // what the dashboard's "Avancement par groupe" counts against, so a
+  // group's stats only reflect tasks it was actually assigned, not every
+  // task any of its members happens to be on.
+  assignedGroups Group[]
+
+  @@map("tasks")
+}
+
+// A task broken down into smaller checkable steps by whoever's working on
+// it (its creator, an assignee, or an admin/manager — see the permission
+// checks in app/api/tasks/[id]/subtasks). `weight` is that subtask's share
+// of the task's overall progress, in percentage points — the full set for
+// one task must always sum to exactly 100. New subtasks default to an
+// equal split (see lib/subtasks.ts's equalWeights()) and can be
+// rebalanced afterward to reflect each one's actual complexity. The
+// task's own `progress` is then just the sum of the weights of its DONE
+// subtasks — kept in sync server-side every time a subtask is toggled,
+// reweighted, added or removed (see the subtasks API routes), so once a
+// task has subtasks, its progress is no longer set by hand.
+model Subtask {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  title     String
+  weight    Int      @default(0) // percentage points (0-100), all of one task's subtasks sum to 100
+  done      Boolean  @default(false)
+  order     Int      @default(0) // display order, set once at creation (append-only)
+  createdAt DateTime @default(now())
+
+  @@map("subtasks")
+}
+
+model Assignment {
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id])
+  agentId    String
+  agent      Agent    @relation(fields: [agentId], references: [id])
+  assignedAt DateTime @default(now())
+
+  @@id([taskId, agentId])
+  @@map("assignments")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  authorId  String
+  author    Agent    @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@map("comments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  type      String
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id])
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}

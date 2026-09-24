@@ -25,9 +25,23 @@ export function fromDatetimeLocalValue(value: string): string | null {
   return date.toISOString();
 }
 
+// The app is used by one team, all in Gabon — fixed here rather than left
+// to whichever timezone happens to be ambient where the formatting code
+// runs. That ambient default is NOT reliable: these formatters are called
+// from client components (TaskDetail.tsx, NotificationBell.tsx), but
+// Next.js still renders those once on the server for the initial HTML —
+// and Vercel's serverless functions run with TZ=UTC, not Gabon's. Without
+// an explicit timeZone, that first (server) render showed the UTC hour —
+// and, right around midnight WAT, even the wrong DAY — while the browser
+// only fixed it up after hydration, if at all, which is exactly the "date
+// de création qui ne correspond pas" bug this fixes. Africa/Libreville is
+// WAT, UTC+1 year-round (no DST), so this needs no seasonal adjustment.
+const DISPLAY_TIME_ZONE = "Africa/Libreville";
+
 // "15 janvier 2026 à 17:30"
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("fr-FR", {
+    timeZone: DISPLAY_TIME_ZONE,
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -39,6 +53,7 @@ export function formatDateTime(iso: string): string {
 // "15 janv., 17:30" — compact form for cards and comment timestamps.
 export function formatDateTimeShort(iso: string): string {
   return new Date(iso).toLocaleString("fr-FR", {
+    timeZone: DISPLAY_TIME_ZONE,
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -48,7 +63,12 @@ export function formatDateTimeShort(iso: string): string {
 
 // "15 janvier 2026" — date only, e.g. for "created on".
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    timeZone: DISPLAY_TIME_ZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 // Formats a duration given in milliseconds as e.g. "2 j 5 h", "3 h 20 min"

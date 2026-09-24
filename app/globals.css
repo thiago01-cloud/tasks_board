@@ -261,6 +261,19 @@ input, select, textarea, button {
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
+  /* Pinned to the viewport instead of scrolling away with .main-content —
+     .dashboard-layout is a plain flex row with no fixed height, so without
+     this the sidebar was just another flex item and scrolled off along
+     with the page on anything taller than one screen. overflow-y covers
+     the (currently unlikely, but not impossible — more nav links, a long
+     company name wrapping) case where the sidebar's own content grows
+     past 100vh: it scrolls internally instead of pushing the bottom
+     (logout button, etc.) off-screen. Overridden below (≤880px) with its
+     own position: fixed for the slide-in mobile menu. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar-logo {
@@ -524,7 +537,10 @@ input, select, textarea, button {
 
 .task-board {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 5 columns: TODO, IN_PROGRESS, BLOCKED, TO_VALIDATE, DONE — see
+     TASK_STATUSES in lib/enums.ts, which TaskBoard.tsx maps over
+     generically to build both the columns and this count. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
 }
@@ -700,6 +716,113 @@ input, select, textarea, button {
 .avatar-circle-more {
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
+}
+
+/* ---------- Team page: member cards (replaces the old table) ---------- */
+
+/* 3 columns by default, stepping down to 2 then 1 as the viewport narrows
+   (see the @media blocks below) — explicit steps rather than
+   auto-fill/minmax, which on a wide monitor would keep adding columns
+   past 3 and made every card fight a flex/grid sizing quirk (see
+   .team-card's own comment) that was collapsing the whole grid to one
+   column regardless of width. */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.team-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* A grid item's default minimum width is its content's natural
+     (unwrapped) size, not the track's own minmax() floor — with a long
+     email/phone in a nowrap row inside, that natural size can be wide
+     enough to force the whole grid down to a single blown-out column.
+     This opts back into the track's actual size so overflow/ellipsis on
+     .team-card-contact-row (below) can do its job. */
+  min-width: 0;
+}
+
+.team-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.team-card-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.team-card-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-card-name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-card-role {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.team-card-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.team-card-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+}
+
+.team-card-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Same flex/grid sizing quirk as .team-card above, one level down: a
+     flex row's own min-width defaults to its content's full unwrapped
+     size, which otherwise overrides overflow/ellipsis entirely. */
+  min-width: 0;
+}
+
+.team-card-contact-row svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.team-card-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ---------- Comments ---------- */
@@ -1208,6 +1331,10 @@ input, select, textarea, button {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .team-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .dashboard-layout {
     flex-direction: column;
   }
@@ -1233,6 +1360,25 @@ input, select, textarea, button {
     min-width: 0;
     flex: 1;
     margin-right: 8px;
+  }
+
+  /* The notification panel's default position (absolute, anchored to the
+     bell's own right edge, up to 340px wide) assumes plenty of room to its
+     left — true in the desktop sidebar, not in the ~48px-tall mobile bar,
+     where the bell sits close to the right edge. Left unconstrained there,
+     the panel gets pushed mostly off-screen to the left and clipped by the
+     mobile bar's own stacking, showing as a cramped, cut-off sliver. Pin it
+     to the viewport instead, just below the sticky bar. Only the mobile-bar
+     bell is reachable on mobile (.sidebar-logo, the other place it renders,
+     is hidden here — see above), so this only ever applies to that one. */
+  .notification-panel {
+    position: fixed;
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: min(420px, 70vh);
   }
 
   .sidebar {
@@ -1288,7 +1434,8 @@ input, select, textarea, button {
   .field-grid-2,
   .field-grid-2-large,
   .field-grid-3,
-  .field-grid-4 {
+  .field-grid-4,
+  .team-grid {
     grid-template-columns: 1fr;
   }
 

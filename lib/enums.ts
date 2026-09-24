@@ -14,16 +14,25 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: "À faire",
   IN_PROGRESS: "En cours",
   BLOCKED: "Bloquée",
+  // Reached automatically once progress hits 100% (manually or via
+  // subtasks — see lib/subtasks.ts's taskUpdateForProgress) — not a final
+  // state: the task's creator (or an admin, only if that creator has since
+  // left the company — see canValidateTask() in lib/auth.ts) still has to
+  // validate it before it becomes truly DONE, or send it back to "En
+  // cours" with a reason (see POST /api/tasks/[id]/reject). DONE itself is
+  // never reachable any other way — see PATCH /api/tasks/[id].
+  TO_VALIDATE: "À valider",
   DONE: "Terminée",
 };
 
 // Board column order (left to right).
-export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"] as const;
+export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "TO_VALIDATE", "DONE"] as const;
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
   TODO: "#6b7280",
   IN_PROGRESS: "#2a3365",
   BLOCKED: "#b3261e",
+  TO_VALIDATE: "#c2760c",
   DONE: "#1a8a4c",
 };
 
@@ -53,4 +62,10 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   TASK_PROGRESS_UPDATED: "Avancement mis à jour",
   TASK_UPDATED: "Tâche modifiée",
   TASK_COMMENT: "Nouveau commentaire",
+  // Sent to whoever can validate the task (its creator, or an admin
+  // fallback) the moment it reaches 100% — see TASK_STATUS_LABELS.TO_VALIDATE.
+  TASK_TO_VALIDATE: "À valider",
+  // Sent to its assignees when that validation is refused — see POST
+  // /api/tasks/[id]/reject.
+  TASK_REJECTED: "Renvoyée en cours",
 };

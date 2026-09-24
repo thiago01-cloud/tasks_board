@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAgentEnsured } from "@/lib/auth";
+import { requireAgentEnsured, canValidateTask } from "@/lib/auth";
 import { TASK_STATUSES, TASK_PRIORITIES } from "@/lib/enums";
 
 async function loadTaskForCompany(id: string, companyId: string) {
@@ -14,11 +14,21 @@ async function loadTaskForCompany(id: string, companyId: string) {
 
 // Updates a task. Two permission tiers:
 //  - `status` and `progress` alone can be changed by the task's creator,
-//    an assignee, or an admin/manager — the everyday "move it along the
-//    board" / "update how far along it is" actions.
+//    an assignee, or an admin — the everyday "move it along the board" /
+//    "update how far along it is" actions, open to whoever's actually
+//    working the task. One exception within this tier: setting `status`
+//    to DONE specifically — i.e. validating a task — is reserved for
+//    whoever can validate it (see canValidateTask() in lib/auth.ts),
+//    normally just its creator. See POST /api/tasks/[id]/reject for the
+//    other half of that review (sending it back with a reason instead).
 //  - Everything else (title, description, priority, due date, who's
-//    assigned) is reserved for the creator or an admin/manager, since it
-//    reshapes the task rather than just tracking its progress.
+//    assigned) is reserved for admins (which includes a company's OWNER —
+//    see getCurrentAgent()'s role normalization), plus a MANAGER but only
+//    on a task they created themselves — since it reshapes the task
+//    rather than just tracking its progress. Deleting a task follows the
+//    same rule — see DELETE below. Creating one only requires being an
+//    admin or a manager (see POST /api/tasks) since there's no existing
+//    task to be "not the creator of" yet.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
@@ -33,8 +43,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Tâche introuvable." }, { status: 404 });
     }
 
-    const canManage = agent!.role !== "MEMBER" || task.creatorId === agent!.id;
+    const isCreator = task.creatorId === agent!.id;
     const isAssignee = task.assignments.some((a) => a.agentId === agent!.id);
+    // Broad tier — status/progress: creator, an assignee, or an admin.
+    const canWork = agent!.role === "ADMIN" || isCreator || isAssignee;
+    // Strict tier — structural edits, assignment changes, delete: any
+    // admin, or a manager but only on a task they created (see the
+    // function comment above).
+    const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && isCreator);
 
     const body = await request.json().catch(() => ({}));
     // Built up field by field below, then passed straight to
@@ -46,14 +62,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const data: Record<string, any> = {};
 
     if (body.status !== undefined) {
-      if (!canManage && !isAssignee) {
+      if (!canWork) {
         return NextResponse.json(
-          { error: "Seuls le créateur, un assigné ou un admin/manager peuvent changer le statut." },
+          { error: "Seuls le créateur, un assigné ou un admin peuvent changer le statut." },
           { status: 403 }
         );
       }
       if (!TASK_STATUSES.includes(body.status)) {
         return NextResponse.json({ error: "Statut invalide." }, { status: 400 });
+      }
+      // DONE is the one status nobody just "sets" — it's the outcome of
+      // validating a task that's already TO_VALIDATE (100% progress), and
+      // only its creator (or an admin fallback — see canValidateTask() in
+      // lib/auth.ts) gets to do that. Every other transition, including
+      // *into* TO_VALIDATE by hand, stays open to canWork above; only the
+      // last step is gated.
+      if (body.status === "DONE") {
+        if (task.status !== "TO_VALIDATE") {
+          return NextResponse.json(
+            { error: "Une tâche ne peut être marquée terminée qu'une fois à 100% et en attente de validation." },
+            { status: 400 }
+          );
+        }
+        const canValidate = await canValidateTask(
+          { id: agent!.id, role: agent!.role },
+          { creatorId: task.creatorId, companyId: agent!.companyId }
+        );
+        if (!canValidate) {
+          return NextResponse.json(
+            { error: "Seul le créateur de la tâche peut la valider." },
+            { status: 403 }
+          );
+        }
       }
       data.status = body.status;
       // Marking a task DONE means it's fully done — unless the caller also
@@ -65,12 +105,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (body.status === "DONE" && body.progress === undefined && task.subtasks.length === 0) {
         data.progress = 100;
       }
+      // `completedAt` tracks the moment the task was actually validated
+      // (see schema.prisma) — set on the way in, cleared on the way out,
+      // and left alone on any other status change (e.g. TODO -> BLOCKED,
+      // or TO_VALIDATE -> IN_PROGRESS via a rejection).
+      if (body.status === "DONE" && task.status !== "DONE") {
+        data.completedAt = new Date();
+      } else if (body.status !== "DONE" && task.status === "DONE") {
+        data.completedAt = null;
+      }
     }
 
     if (body.progress !== undefined) {
-      if (!canManage && !isAssignee) {
+      if (!canWork) {
         return NextResponse.json(
-          { error: "Seuls le créateur, un assigné ou un admin/manager peuvent changer l'avancement." },
+          { error: "Seuls le créateur, un assigné ou un admin peuvent changer l'avancement." },
           { status: 403 }
         );
       }
@@ -85,6 +134,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return NextResponse.json({ error: "L'avancement doit être un nombre entre 0 et 100." }, { status: 400 });
       }
       data.progress = Math.round(progress);
+      // Mirror of lib/subtasks.ts's taskUpdateForProgress: reaching 100%
+      // queues the task up for validation, not the other way around.
+      // Skipped when `status` was already set explicitly in this same
+      // request (that block already decided), or when it's already
+      // TO_VALIDATE/DONE (no re-queuing on a no-op resend at 100%).
+      if (
+        data.progress === 100 &&
+        body.status === undefined &&
+        task.status !== "TO_VALIDATE" &&
+        task.status !== "DONE"
+      ) {
+        data.status = "TO_VALIDATE";
+      }
     }
 
     const wantsManagedEdit =
@@ -97,7 +159,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (wantsManagedEdit && !canManage) {
       return NextResponse.json(
-        { error: "Seuls le créateur ou un admin/manager peuvent modifier la tâche." },
+        {
+          error:
+            "Seuls les administrateurs, ou le manager qui a créé cette tâche, peuvent la modifier.",
+        },
         { status: 403 }
       );
     }
@@ -224,7 +289,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         recipients.delete(agent!.id);
 
         const notifTypes: string[] = [];
-        if (statusChanged) notifTypes.push("TASK_STATUS_CHANGED");
+        // Reaching TO_VALIDATE gets its own notification type — see
+        // lib/subtasks.ts's notificationTypeForProgress, which this
+        // mirrors for the manual-status/manual-slider paths.
+        if (statusChanged) notifTypes.push(data.status === "TO_VALIDATE" ? "TASK_TO_VALIDATE" : "TASK_STATUS_CHANGED");
         else if (progressChanged) notifTypes.push("TASK_PROGRESS_UPDATED");
         if (editedFieldsChanged) notifTypes.push("TASK_UPDATED");
 
@@ -247,7 +315,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 // Deletes a task and everything hanging off it (assignments, comments,
 // notifications) — SQLite here has no ON DELETE CASCADE configured, so
-// this is done explicitly in one transaction.
+// this is done explicitly in one transaction. Same rule as editing a
+// task's structural fields — see the PATCH handler's function comment:
+// any admin, or a manager but only on a task they created.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
@@ -259,10 +329,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: "Tâche introuvable." }, { status: 404 });
     }
 
-    const canManage = agent!.role !== "MEMBER" || task.creatorId === agent!.id;
+    const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && task.creatorId === agent!.id);
     if (!canManage) {
       return NextResponse.json(
-        { error: "Seuls le créateur ou un admin/manager peuvent supprimer cette tâche." },
+        {
+          error:
+            "Seuls les administrateurs, ou le manager qui a créé cette tâche, peuvent la supprimer.",
+        },
         { status: 403 }
       );
     }

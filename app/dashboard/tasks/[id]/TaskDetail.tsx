@@ -15,6 +15,7 @@ import {
   formatDate,
   formatDateTime,
   formatDateTimeShort,
+  formatDuration,
 } from "@/lib/dates";
 import CircularProgress, { progressColor } from "../CircularProgress";
 import AssigneePicker, {
@@ -43,6 +44,7 @@ type TaskData = {
   progress: number;
   dueDate: string | null;
   createdAt: string;
+  completedAt: string | null;
   creator: { id: string; firstName: string; lastName: string };
   assigneeIds: string[];
   comments: CommentItem[];
@@ -55,6 +57,7 @@ export default function TaskDetail({
   groups,
   canManage,
   canChangeStatus,
+  canValidate,
   currentAgent,
 }: {
   task: TaskData;
@@ -62,6 +65,7 @@ export default function TaskDetail({
   groups: GroupOption[];
   canManage: boolean;
   canChangeStatus: boolean;
+  canValidate: boolean;
   currentAgent: { id: string; firstName: string; lastName: string };
 }) {
   const router = useRouter();
@@ -70,6 +74,18 @@ export default function TaskDetail({
   const [status, setStatus] = useState(task.status);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
+
+  // The validation panel shown once a task is TO_VALIDATE (see status
+  // select's own comment below for why DONE isn't in there): "Valider"
+  // goes through handleValidate below, "Renvoyer en cours" needs a
+  // mandatory reason first, tracked by `rejecting` toggling a small inline
+  // form rather than reusing useConfirm() (that dialog has no text input).
+  const [validateLoading, setValidateLoading] = useState(false);
+  const [validateError, setValidateError] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [rejectError, setRejectError] = useState("");
 
   // `progress` is the last value confirmed by the server; `progressDraft`
   // tracks the slider while it's being dragged so the UI feels immediate
@@ -113,14 +129,6 @@ export default function TaskDetail({
     const previous = status;
     const previousProgress = progress;
     setStatus(next);
-    // Mirrors the server's own rule (see PATCH /api/tasks/[id]): marking a
-    // task DONE snaps its progress to 100% too, so the two stay in sync
-    // without waiting for a refresh — skipped when subtasks exist, since
-    // there progress stays derived from them and isn't forced by status.
-    if (next === "DONE" && !hasSubtasks) {
-      setProgress(100);
-      setProgressDraft(100);
-    }
     setStatusLoading(true);
     setStatusError("");
 
@@ -149,10 +157,84 @@ export default function TaskDetail({
     setStatusLoading(false);
   }
 
+  async function handleValidate() {
+    const ok = await confirm({
+      title: "Valider cette tâche ?",
+      message: "Elle passera au statut « Terminée ».",
+      confirmLabel: "Valider",
+    });
+    if (!ok) return;
+
+    setValidateLoading(true);
+    setValidateError("");
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DONE" }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setValidateError(data.error || "Une erreur est survenue.");
+      } else {
+        setStatus("DONE");
+        router.refresh();
+      }
+    } catch {
+      setValidateError("Impossible de contacter le serveur. Réessaie.");
+    }
+    setValidateLoading(false);
+  }
+
+  async function handleRejectSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setRejectError("");
+    if (!rejectReason.trim()) {
+      setRejectError("Le motif est requis.");
+      return;
+    }
+    setRejectLoading(true);
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setRejectError(data.error || "Une erreur est survenue.");
+        setRejectLoading(false);
+        return;
+      }
+
+      setStatus("IN_PROGRESS");
+      setRejecting(false);
+      setRejectReason("");
+      setRejectLoading(false);
+      router.refresh();
+    } catch {
+      setRejectError("Impossible de contacter le serveur. Réessaie.");
+      setRejectLoading(false);
+    }
+  }
+
   async function commitProgress(next: number) {
     const previous = progress;
     if (next === previous) return;
+    const previousStatus = status;
     setProgress(next);
+    // Mirrors the server's own rule (see PATCH /api/tasks/[id] and
+    // lib/subtasks.ts's taskUpdateForProgress): reaching 100% queues the
+    // task up for validation, not straight to DONE — kept in sync
+    // client-side so the status select flips to « À valider » immediately
+    // instead of waiting for the refresh below to land.
+    if (next === 100 && status !== "TO_VALIDATE" && status !== "DONE") {
+      setStatus("TO_VALIDATE");
+    }
     setProgressLoading(true);
     setProgressError("");
 
@@ -167,6 +249,7 @@ export default function TaskDetail({
       if (!res.ok) {
         setProgress(previous);
         setProgressDraft(previous);
+        setStatus(previousStatus);
         setProgressError(data.error || "Une erreur est survenue.");
       } else {
         router.refresh();
@@ -174,6 +257,7 @@ export default function TaskDetail({
     } catch {
       setProgress(previous);
       setProgressDraft(previous);
+      setStatus(previousStatus);
       setProgressError("Impossible de contacter le serveur. Réessaie.");
     }
     setProgressLoading(false);
@@ -328,6 +412,15 @@ export default function TaskDetail({
               onProgressChange={(p) => {
                 setProgress(p);
                 setProgressDraft(p);
+                // Same auto-queue mirroring as commitProgress above, for
+                // when a subtask toggle is what pushes progress to 100%
+                // (see lib/subtasks.ts's taskUpdateForProgress) — SubtaskList
+                // already triggers router.refresh() itself once its API call
+                // resolves, this just avoids a flash of the old status until
+                // that refresh finishes.
+                if (p === 100 && status !== "TO_VALIDATE" && status !== "DONE") {
+                  setStatus("TO_VALIDATE");
+                }
               }}
             />
           </div>
@@ -437,17 +530,93 @@ export default function TaskDetail({
           <select
             id="status"
             value={status}
-            disabled={!canChangeStatus || statusLoading}
+            // DONE isn't offered here — it's never just "set", it's the
+            // outcome of validating a task that's TO_VALIDATE (see the
+            // panel below), reserved for whoever can validate it.
+            disabled={!canChangeStatus || statusLoading || status === "DONE"}
             onChange={(e) => handleStatusChange(e.target.value)}
           >
-            {TASK_STATUSES.map((s) => (
+            {TASK_STATUSES.filter((s) => s !== "DONE").map((s) => (
               <option key={s} value={s}>
                 {TASK_STATUS_LABELS[s]}
               </option>
             ))}
+            {status === "DONE" && <option value="DONE">{TASK_STATUS_LABELS.DONE}</option>}
           </select>
           {statusError && <p className="error-message">{statusError}</p>}
         </div>
+
+        {status === "TO_VALIDATE" && (
+          <div className="field">
+            <label>Validation</label>
+            {canValidate && !rejecting && (
+              <div>
+                <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "var(--color-text-muted)" }}>
+                  La tâche est à 100% et attend ta validation.
+                </p>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button type="button" className="button" onClick={handleValidate} disabled={validateLoading}>
+                    {validateLoading ? "Validation..." : "Valider"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary button"
+                    style={{ color: "var(--color-danger)", borderColor: "var(--color-danger-tint)" }}
+                    onClick={() => {
+                      setRejecting(true);
+                      setRejectError("");
+                    }}
+                    disabled={validateLoading}
+                  >
+                    Renvoyer en cours
+                  </button>
+                </div>
+                {validateError && <p className="error-message">{validateError}</p>}
+              </div>
+            )}
+
+            {canValidate && rejecting && (
+              <form onSubmit={handleRejectSubmit}>
+                <textarea
+                  rows={3}
+                  placeholder="Motif du renvoi en cours (obligatoire)..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  autoFocus
+                />
+                {rejectError && <p className="error-message">{rejectError}</p>}
+                <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                  <button
+                    type="submit"
+                    className="button-secondary button"
+                    style={{ color: "var(--color-danger)", borderColor: "var(--color-danger-tint)" }}
+                    disabled={rejectLoading}
+                  >
+                    {rejectLoading ? "Envoi..." : "Confirmer le renvoi"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary button"
+                    onClick={() => {
+                      setRejecting(false);
+                      setRejectReason("");
+                      setRejectError("");
+                    }}
+                    disabled={rejectLoading}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {!canValidate && (
+              <p style={{ margin: 0, fontSize: 13.5, color: "var(--color-text-muted)" }}>
+                En attente de validation par le créateur de la tâche.
+              </p>
+            )}
+          </div>
+        )}
 
         {hasSubtasks && (status === "IN_PROGRESS" || progress > 0) && (
           <div className="field">
@@ -505,6 +674,58 @@ export default function TaskDetail({
           <div className="field">
             <label>Échéance</label>
             <p style={{ margin: 0 }}>{formatDateTime(task.dueDate)}</p>
+          </div>
+        )}
+
+        {status === "DONE" && task.dueDate && task.completedAt && (
+          <div className="field">
+            <label>Performance</label>
+            {(() => {
+              const created = new Date(task.createdAt).getTime();
+              const due = new Date(task.dueDate!).getTime();
+              const completed = new Date(task.completedAt!).getTime();
+              // Temps accordé = délai laissé à l'agent (échéance - création),
+              // temps de traitement = durée réellement mise (validation -
+              // création). Leur différence revient exactement à comparer la
+              // date de validation à l'échéance (due - completed), ce qui
+              // donne aussi le sens (avance/retard) — les deux durées sont
+              // affichées séparément parce que c'est ce qui a été demandé,
+              // même si la marge se déduit de l'une ou de l'autre.
+              const allotted = due - created;
+              const taken = completed - created;
+              const margin = due - completed; // > 0 = en avance, < 0 = en retard, 0 = pile à l'heure
+              const isLate = margin < 0;
+              const isOnTime = margin === 0;
+
+              return (
+                <div>
+                  <p style={{ margin: "0 0 8px" }}>
+                    <span
+                      className="badge"
+                      style={{
+                        color: isLate ? "var(--color-danger)" : "var(--color-success)",
+                        borderColor: isLate ? "var(--color-danger-tint)" : "var(--color-success)",
+                      }}
+                    >
+                      {isOnTime ? "À l'heure" : isLate ? "En retard" : "En avance"}
+                    </span>
+                  </p>
+                  <p style={{ margin: "0 0 3px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                    Temps accordé : {formatDuration(allotted)}
+                  </p>
+                  <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                    Temps de traitement : {formatDuration(taken)}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                    {isOnTime
+                      ? "Terminée pile à l'heure."
+                      : isLate
+                      ? `${formatDuration(margin)} de retard sur l'échéance.`
+                      : `${formatDuration(margin)} d'avance sur l'échéance.`}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 

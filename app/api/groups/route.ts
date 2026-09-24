@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAgent, requireAdmin } from "@/lib/auth";
+import { requireAgent, requireAgentEnsured } from "@/lib/auth";
 import { validMemberIds } from "@/lib/groups";
 
 // Lists the company's groups, each with its member ids — any connected
-// member can read this (used both by the admin-only team page and by the
-// dashboard's "avancement par groupe" section for every role).
+// member can read this (used both by the team page, open to admins and
+// managers, and by the dashboard's "avancement par groupe" section for
+// every role).
 export async function GET() {
   const { agent, error } = await requireAgent();
   if (error) return error;
@@ -22,6 +23,7 @@ export async function GET() {
         id: g.id,
         name: g.name,
         memberIds: g.agents.map((a) => a.id),
+        creatorId: g.creatorId,
       })),
     });
   } catch (err) {
@@ -30,11 +32,20 @@ export async function GET() {
   }
 }
 
-// Creates a group with its initial members in one go. Reserved to admins,
-// same tier as the rest of team management.
+// Creates a group with its initial members in one go. Open to admins and
+// managers alike — a manager can later only edit/delete the groups they
+// created themselves, same rule as tasks (see PATCH/DELETE
+// /api/groups/[id]).
 export async function POST(request: Request) {
-  const { agent, error } = await requireAdmin();
+  const { agent, error } = await requireAgentEnsured();
   if (error) return error;
+
+  if (agent!.role !== "ADMIN" && agent!.role !== "MANAGER") {
+    return NextResponse.json(
+      { error: "Seuls les administrateurs et les managers peuvent créer un groupe." },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -49,11 +60,15 @@ export async function POST(request: Request) {
       data: {
         companyId: agent!.companyId,
         name,
+        creatorId: agent!.id,
         agents: { connect: memberIds.map((id) => ({ id })) },
       },
     });
 
-    return NextResponse.json({ group: { id: group.id, name: group.name, memberIds } }, { status: 201 });
+    return NextResponse.json(
+      { group: { id: group.id, name: group.name, memberIds, creatorId: group.creatorId } },
+      { status: 201 }
+    );
   } catch (err) {
     console.error("POST /api/groups failed:", err);
     return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });

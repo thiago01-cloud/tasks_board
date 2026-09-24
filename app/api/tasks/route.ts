@@ -4,12 +4,23 @@ import { requireAgentEnsured } from "@/lib/auth";
 import { TASK_PRIORITIES } from "@/lib/enums";
 import { validGroupIds } from "@/lib/groups";
 
-// Creates a task in the current company. Any team member can create one
-// (not just admins/managers) — assigning it to others, if needed, is a
-// separate permission enforced in PATCH /api/tasks/[id].
+// Creates a task in the current company. Reserved for admins (which
+// includes a company's OWNER — see getCurrentAgent()'s role normalization
+// in lib/auth.ts) and managers — a MANAGER can create tasks freely, but
+// can only edit/delete the ones they created themselves afterward (see
+// PATCH/DELETE /api/tasks/[id]). Everyday work on a task already in
+// progress (status, progress, subtasks, comments) stays open to its
+// assignees regardless of role.
 export async function POST(request: Request) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
+
+  if (agent!.role !== "ADMIN" && agent!.role !== "MANAGER") {
+    return NextResponse.json(
+      { error: "Seuls les administrateurs et les managers peuvent créer une tâche." },
+      { status: 403 }
+    );
+  }
 
   // Wrapped end to end: an unexpected error here (a bad transaction, a
   // stale Prisma Client after a schema change, ...) must still send a

@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { requireAgentEnsured } from "@/lib/auth";
 import { validMemberIds } from "@/lib/groups";
+
+// Renaming/deleting a group is reserved to any admin, or to the manager
+// who created it — same tier as tasks (see PATCH/DELETE
+// /api/tasks/[id]'s own comment). A group created before `creatorId`
+// existed, or whose creator has since left the company, falls back to
+// admin-only.
+function canManageGroup(agent: { role: string; id: string | null }, group: { creatorId: string | null }): boolean {
+  return agent.role === "ADMIN" || (agent.role === "MANAGER" && group.creatorId === agent.id);
+}
 
 // Renames a group and/or replaces its membership entirely (checkbox list
 // in GroupEditor.tsx submits the full member set each time, not a diff).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { agent, error } = await requireAdmin();
+  const { agent, error } = await requireAgentEnsured();
   if (error) return error;
 
   try {
@@ -14,6 +23,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const group = await prisma.group.findUnique({ where: { id } });
     if (!group || group.companyId !== agent!.companyId) {
       return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
+    }
+
+    if (!canManageGroup(agent!, group)) {
+      return NextResponse.json(
+        {
+          error:
+            "Seuls les administrateurs, ou le manager qui a créé ce groupe, peuvent le modifier.",
+        },
+        { status: 403 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
@@ -51,7 +70,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 // is needed here (unlike Task's own relations, which don't cascade on
 // this SQLite setup).
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { agent, error } = await requireAdmin();
+  const { agent, error } = await requireAgentEnsured();
   if (error) return error;
 
   try {
@@ -59,6 +78,16 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const group = await prisma.group.findUnique({ where: { id } });
     if (!group || group.companyId !== agent!.companyId) {
       return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
+    }
+
+    if (!canManageGroup(agent!, group)) {
+      return NextResponse.json(
+        {
+          error:
+            "Seuls les administrateurs, ou le manager qui a créé ce groupe, peuvent le supprimer.",
+        },
+        { status: 403 }
+      );
     }
 
     await prisma.group.delete({ where: { id } });

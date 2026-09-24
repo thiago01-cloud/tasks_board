@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import TaskBoard from "./TaskBoard";
@@ -9,6 +10,9 @@ export default async function TasksPage({
   searchParams: Promise<{ mine?: string }>;
 }) {
   const agent = await getCurrentAgent();
+  // Rare case: valid session cookie, but the agent/company/user it points
+  // at was deleted in the meantime — see dashboard/layout.tsx's own guard.
+  if (!agent) redirect("/login");
   const { mine } = await searchParams;
   const onlyMine = mine === "1";
 
@@ -50,9 +54,11 @@ export default async function TasksPage({
     <div>
       <div className="page-header">
         <h1>Tâches</h1>
-        <Link href="/dashboard/tasks/new" className="button">
-          + Nouvelle tâche
-        </Link>
+        {(agent!.role === "ADMIN" || agent!.role === "MANAGER") && (
+          <Link href="/dashboard/tasks/new" className="button">
+            + Nouvelle tâche
+          </Link>
+        )}
       </div>
 
       <TaskBoard tasks={boardTasks} onlyMine={onlyMine} />

@@ -242,7 +242,14 @@ export default function SubtaskList({
                 max={100}
                 value={draftWeights[s.id] ?? ""}
                 onChange={(e) => setDraftWeights((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                style={{ width: 64 }}
+                style={{
+                  width: 64,
+                  padding: "6px 8px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                }}
               />
               <span>%</span>
             </div>
@@ -273,7 +280,14 @@ export default function SubtaskList({
             placeholder="Nouvelle sous-tâche..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            style={{ flex: 1 }}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius)",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+            }}
           />
           <button type="submit" className="button-secondary button" style={{ padding: "8px 14px", fontSize: 13 }} disabled={addLoading}>
             {addLoading ? "Ajout..." : "Ajouter"}

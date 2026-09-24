@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pageTitle } from "@/lib/constants";
@@ -7,8 +8,13 @@ export const metadata = {
   title: pageTitle("Nouvelle tâche"),
 };
 
+// Creating a task is reserved for admins and managers — see POST
+// /api/tasks's own comment — so anyone else landing here directly (typed
+// URL, stale link) is sent back rather than shown a form that would just
+// fail on submit.
 export default async function NewTaskPage() {
   const agent = await getCurrentAgent();
+  if (!agent || (agent.role !== "ADMIN" && agent.role !== "MANAGER")) redirect("/dashboard/tasks");
 
   const [members, groups] = await Promise.all([
     prisma.agent.findMany({

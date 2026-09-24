@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
-import { equalWeights, computeProgress } from "@/lib/subtasks";
+import { equalWeights, computeProgress, taskUpdateForProgress, notificationTypeForProgress } from "@/lib/subtasks";
 
 async function loadTaskWithSubtasks(id: string, companyId: string) {
   const task = await prisma.task.findUnique({
@@ -60,14 +60,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const nextProgress = computeProgress(all.map((s, i) => ({ weight: weights[i], done: s.done })));
       if (nextProgress !== task.progress) {
-        await tx.task.update({ where: { id }, data: { progress: nextProgress } });
+        const update = taskUpdateForProgress(nextProgress, task.status);
+        await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));
         recipients.add(task.creatorId);
         recipients.delete(agent!.id);
         if (recipients.size > 0) {
           await tx.notification.createMany({
-            data: [...recipients].map((agentId) => ({ agentId, type: "TASK_PROGRESS_UPDATED", taskId: id })),
+            data: [...recipients].map((agentId) => ({ agentId, type: notificationTypeForProgress(update), taskId: id })),
           });
         }
       }
@@ -143,14 +144,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       const nextProgress = computeProgress(task.subtasks.map((s) => ({ weight: parsed[s.id], done: s.done })));
       if (nextProgress !== task.progress) {
-        await tx.task.update({ where: { id }, data: { progress: nextProgress } });
+        const update = taskUpdateForProgress(nextProgress, task.status);
+        await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));
         recipients.add(task.creatorId);
         recipients.delete(agent!.id);
         if (recipients.size > 0) {
           await tx.notification.createMany({
-            data: [...recipients].map((agentId) => ({ agentId, type: "TASK_PROGRESS_UPDATED", taskId: id })),
+            data: [...recipients].map((agentId) => ({ agentId, type: notificationTypeForProgress(update), taskId: id })),
           });
         }
       }

@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ConfirmProvider";
 
-export type GroupItem = { id: string; name: string; memberIds: string[] };
+export type GroupItem = { id: string; name: string; memberIds: string[]; creatorId: string | null };
 export type MemberOption = { id: string; name: string };
 
 // Bare (not-in-".field") inputs used in the horizontal "create" row below
@@ -155,7 +155,17 @@ function GroupEditor({
   );
 }
 
-export default function GroupManager({ groups, members }: { groups: GroupItem[]; members: MemberOption[] }) {
+export default function GroupManager({
+  groups,
+  members,
+  currentAgentId,
+  isAdmin,
+}: {
+  groups: GroupItem[];
+  members: MemberOption[];
+  currentAgentId: string;
+  isAdmin: boolean;
+}) {
   const router = useRouter();
   const confirm = useConfirm();
 
@@ -240,8 +250,13 @@ export default function GroupManager({ groups, members }: { groups: GroupItem[];
 
       {groups.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-          {groups.map((group) =>
-            editingId === group.id ? (
+          {groups.map((group) => {
+            // Any admin can manage any group; a manager only the ones they
+            // created themselves — same rule enforced server-side in
+            // PATCH/DELETE /api/groups/[id].
+            const canManageThis = isAdmin || group.creatorId === currentAgentId;
+
+            return editingId === group.id ? (
               <GroupEditor
                 key={group.id}
                 group={group}
@@ -257,33 +272,35 @@ export default function GroupManager({ groups, members }: { groups: GroupItem[];
                     ({group.memberIds.length} membre{group.memberIds.length > 1 ? "s" : ""})
                   </span>
                 </span>
-                <div className="group-list-actions">
-                  <button
-                    type="button"
-                    className="button-secondary button"
-                    style={{ padding: "5px 10px", fontSize: 12.5 }}
-                    onClick={() => setEditingId(group.id)}
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    type="button"
-                    className="button-secondary button"
-                    style={{
-                      padding: "5px 10px",
-                      fontSize: 12.5,
-                      color: "var(--color-danger)",
-                      borderColor: "var(--color-danger-tint)",
-                    }}
-                    onClick={() => handleDelete(group)}
-                    disabled={deletingId === group.id}
-                  >
-                    Supprimer
-                  </button>
-                </div>
+                {canManageThis && (
+                  <div className="group-list-actions">
+                    <button
+                      type="button"
+                      className="button-secondary button"
+                      style={{ padding: "5px 10px", fontSize: 12.5 }}
+                      onClick={() => setEditingId(group.id)}
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary button"
+                      style={{
+                        padding: "5px 10px",
+                        fontSize: 12.5,
+                        color: "var(--color-danger)",
+                        borderColor: "var(--color-danger-tint)",
+                      }}
+                      onClick={() => handleDelete(group)}
+                      disabled={deletingId === group.id}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )}
               </div>
-            )
-          )}
+            );
+          })}
         </div>
       )}
 

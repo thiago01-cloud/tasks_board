@@ -56,7 +56,10 @@ export default function Sidebar({ agent }: { agent: Agent }) {
           <NotificationBell />
         </div>
 
-        <NavLinks isAdmin={agent.role === "ADMIN"} onNavigate={() => setOpen(false)} />
+        <NavLinks
+          showTeamLink={agent.role === "ADMIN" || agent.role === "MANAGER"}
+          onNavigate={() => setOpen(false)}
+        />
 
         <div className="sidebar-footer">
           {/* Full management page (list/rename/delete/create) instead of a

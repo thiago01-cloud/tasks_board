@@ -28,7 +28,8 @@ export const APP_DESCRIPTION =
   "Plateforme de gestion des tâches pour entreprises : tâches, équipe et suivi, réunis dans un seul espace.";
 
 export const FOOTER_SIGNATURE =
-  "By EseaX Corporate, Justin-Laurent NZENGUI-MAYOMBO";
+
+  "By EseaX Corporate, JLNM 2026";
 
 // "TASKS" palette — must stay in sync with the CSS variables defined in
 // app/globals.css (:root).

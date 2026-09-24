@@ -89,6 +89,14 @@ model Group {
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name      String
   createdAt DateTime @default(now())
+  // Who created this group — an ADMIN can edit/delete any group, but a
+  // MANAGER only the ones they created themselves (see PATCH/DELETE
+  // /api/groups/[id]). Nullable/SetNull so a group survives its creator
+  // being removed from the company (it just becomes admin-only to manage
+  // from then on, same fallback as a group created before this field
+  // existed).
+  creatorId String?
+  creator   Agent?   @relation("GroupCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
   agents Agent[]
   // Tasks explicitly assigned to this group (the group chip was used on
@@ -118,6 +126,7 @@ model Agent {
   joinedAt  DateTime @default(now())
 
   createdTasks  Task[]         @relation("TaskCreator")
+  createdGroups Group[]        @relation("GroupCreator")
   assignments   Assignment[]
   comments      Comment[]
   notifications Notification[]
@@ -134,8 +143,14 @@ model Task {
   description String?
   status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED"
   priority    String    @default("NORMAL") // "LOW" | "NORMAL" | "HIGH" | "URGENT"
-  progress    Int       @default(0) // 0-100, edited mainly while status is IN_PROGRESS; set to 100 automatically when status becomes DONE
+  progress    Int       @default(0) // 0-100, edited mainly while status is IN_PROGRESS; set to 100 automatically when status becomes DONE (and vice versa: reaching 100 forces status to DONE — see PATCH /api/tasks/[id] and the subtasks routes)
   dueDate     DateTime?
+  // Set the moment `status` becomes DONE (by any path), cleared if it ever
+  // moves away from DONE again — used to compare against `dueDate` for the
+  // "on time / early / late" performance readout on a finished task (see
+  // TaskDetail.tsx). Distinct from `updatedAt`, which changes on ANY edit,
+  // not just completion.
+  completedAt DateTime?
   creatorId   String
   creator     Agent     @relation("TaskCreator", fields: [creatorId], references: [id])
   createdAt   DateTime  @default(now())

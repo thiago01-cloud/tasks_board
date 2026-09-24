@@ -2,13 +2,18 @@ import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import TeamForm from "./TeamForm";
-import TeamRow from "./TeamRow";
+import TeamCard from "./TeamCard";
 import GroupManager from "./GroupManager";
 import TeamFabButtons from "./TeamFabButtons";
 
 export default async function TeamPage() {
   const agent = await getCurrentAgent();
-  if (!agent || agent.role !== "ADMIN") redirect("/dashboard");
+  // Admins get the full page; managers get it too (to create groups — see
+  // GroupManager) but with "Ajouter un membre" and each member's
+  // "Supprimer" hidden, since add/remove staff stays admin-only (see
+  // POST/DELETE /api/agents). Anyone else is redirected away.
+  if (!agent || (agent.role !== "ADMIN" && agent.role !== "MANAGER")) redirect("/dashboard");
+  const isAdmin = agent.role === "ADMIN";
 
   const [companyMembers, groups] = await Promise.all([
     prisma.agent.findMany({
@@ -37,59 +42,45 @@ export default async function TeamPage() {
         <h1>Équipe</h1>
       </div>
 
-      {/* Simple single-column stack (table, then forms) instead of a
-          side-by-side split — splitting the width in two left the members
-          table with too little room for its columns and forced an inner
-          horizontal scrollbar even on desktop. Full-width blocks give the
-          table room to breathe and read top to bottom, one under the other. */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nom</th>
-                <th>Téléphone</th>
-                <th>Email</th>
-                <th>Rôle</th>
-                <th>Groupes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {companyMembers.map((member) => (
-                <TeamRow
-                  key={member.id}
-                  agent={{
-                    id: member.id,
-                    firstName: member.user.firstName,
-                    lastName: member.user.lastName,
-                    phone: member.user.phone,
-                    email: member.user.email,
-                    role: member.role,
-                    groupNames: member.groups.map((g) => g.name),
-                  }}
-                  isMe={member.userId === agent.userId}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Card grid (was a table) — reads better at a glance and doesn't
+          force a horizontal scrollbar on narrower screens. */}
+      <div className="team-grid" style={{ marginBottom: 20 }}>
+        {companyMembers.map((member) => (
+          <TeamCard
+            key={member.id}
+            agent={{
+              id: member.id,
+              firstName: member.user.firstName,
+              lastName: member.user.lastName,
+              phone: member.user.phone,
+              email: member.user.email,
+              role: member.role,
+              groupNames: member.groups.map((g) => g.name),
+            }}
+            isMe={member.userId === agent.userId}
+            canDelete={isAdmin}
+          />
+        ))}
       </div>
 
-      <div id="add-agent-form" className="card scroll-target" style={{ marginBottom: 20 }}>
-        <h3 style={{ marginTop: 0 }}>Ajouter un membre</h3>
-        <TeamForm />
-      </div>
+      {isAdmin && (
+        <div id="add-agent-form" className="card scroll-target" style={{ marginBottom: 20 }}>
+          <h3 style={{ marginTop: 0 }}>Ajouter un membre</h3>
+          <TeamForm />
+        </div>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Groupes</h3>
         <GroupManager
-          groups={groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.agents.map((a) => a.id) }))}
+          groups={groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.agents.map((a) => a.id), creatorId: g.creatorId }))}
           members={memberOptions}
+          currentAgentId={agent.id ?? ""}
+          isAdmin={isAdmin}
         />
       </div>
 
-      <TeamFabButtons />
+      <TeamFabButtons isAdmin={isAdmin} />
     </div>
   );
 }

@@ -50,3 +50,28 @@ export function formatDateTimeShort(iso: string): string {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
+
+// Formats a duration given in milliseconds as e.g. "2 j 5 h", "3 h 20 min"
+// or "45 min" — always positive, the caller decides what the sign means
+// (see TaskDetail.tsx's "on time / early / late" readout, the one place
+// this is used). Rounds to the minute; under a minute reads as "< 1 min"
+// rather than "0 min", which would misleadingly read as "no difference".
+export function formatDuration(ms: number): string {
+  const totalMinutes = Math.round(Math.abs(ms) / 60000);
+  if (totalMinutes < 1) return "< 1 min";
+
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} j`);
+  if (hours > 0) parts.push(`${hours} h`);
+  // Minutes are only worth showing when they're the only unit, or the
+  // finer of exactly two units (e.g. "3 h 20 min") — a third unit would
+  // be more precision than this readout needs ("2 j 5 h 12 min").
+  if (minutes > 0 && days === 0) parts.push(`${minutes} min`);
+  if (parts.length === 0) parts.push(`${minutes} min`);
+
+  return parts.join(" ");
+}

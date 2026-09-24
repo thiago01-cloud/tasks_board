@@ -21,3 +21,37 @@ export function equalWeights(count: number): number[] {
 export function computeProgress(subtasks: { weight: number; done: boolean }[]): number {
   return subtasks.reduce((sum, s) => (s.done ? sum + s.weight : sum), 0);
 }
+
+// Data to pass to `tx.task.update` whenever a subtask change moves the
+// parent task's progress — always carries the new `progress`, and also
+// flips `status` to TO_VALIDATE the moment it reaches 100%, mirroring
+// PATCH /api/tasks/[id]'s rule for the manual slider. Not `completedAt`
+// yet, and not straight to DONE either — DONE is now reserved for once
+// the task's creator (or an admin fallback — see canValidateTask() in
+// lib/auth.ts) actually validates it, which is also the moment
+// `completedAt` gets set (see PATCH /api/tasks/[id]); reaching 100% only
+// queues it up for that review. Deliberately one-directional: progress
+// dropping back down later (e.g. a subtask reweighted or deleted after
+// the task was auto-queued) never reopens it — only the forward "just
+// finished" transition is automatic. Skipped once already TO_VALIDATE or
+// DONE, so re-toggling subtasks at 100% doesn't keep re-queuing it.
+export function taskUpdateForProgress(
+  nextProgress: number,
+  currentStatus: string
+): { progress: number; status?: string } {
+  if (nextProgress === 100 && currentStatus !== "TO_VALIDATE" && currentStatus !== "DONE") {
+    return { progress: nextProgress, status: "TO_VALIDATE" };
+  }
+  return { progress: nextProgress };
+}
+
+// Which notification type a progress-driven update should send — status
+// change wins over a plain progress update when the two coincide (same
+// "one notification, not two" rule PATCH /api/tasks/[id] follows), and
+// reaching TO_VALIDATE specifically gets its own type so whoever can
+// validate the task sees a clear "à valider" notification rather than a
+// generic "statut changé" one.
+export function notificationTypeForProgress(update: { status?: string }): string {
+  if (update.status === "TO_VALIDATE") return "TASK_TO_VALIDATE";
+  return update.status ? "TASK_STATUS_CHANGED" : "TASK_PROGRESS_UPDATED";
+}

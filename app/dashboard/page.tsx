@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,13 @@ import StatusIcon from "./StatusIcon";
 
 export default async function DashboardPage() {
   const agent = await getCurrentAgent();
-  const companyId = agent!.companyId;
+  // Rare case: the session cookie is still a valid token, but the agent,
+  // company, or user it points at was deleted in the meantime (see
+  // dashboard/layout.tsx's own guard, which normally catches this first —
+  // this one is a defensive fallback for when this page's own data fetch
+  // resolves before that redirect takes effect).
+  if (!agent) redirect("/login");
+  const companyId = agent.companyId;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [statusCounts, priorityCounts, myOpenCount, overdueCount, createdThisWeek, avgProgress, members, groupCount, tasksWithGroups] =
@@ -273,10 +280,10 @@ export default async function DashboardPage() {
                       </span>
                       <span
                         className="badge"
-                        style={{ minWidth: 64, textAlign: "center" }}
-                        title="Tâches ouvertes"
+                        style={{ minWidth: 96, textAlign: "center" }}
+                        title="Nombre de tâches assignées à cette personne qui ne sont pas encore terminées"
                       >
-                        {m.openCount} ouverte{m.openCount > 1 ? "s" : ""}
+                        {m.openCount} tâche{m.openCount > 1 ? "s" : ""} en attente
                       </span>
                     </div>
                   ))}
@@ -329,13 +336,18 @@ export default async function DashboardPage() {
       )}
 
       <div className="card">
-        {total === 0 && (
+        {total === 0 && (agent!.role === "ADMIN" || agent!.role === "MANAGER") && (
           <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
             Aucune tâche pour l&apos;instant.{" "}
             <Link href="/dashboard/tasks/new" style={{ color: "var(--color-primary)", fontWeight: 600 }}>
               Créez la première
             </Link>
             .
+          </p>
+        )}
+        {total === 0 && agent!.role !== "ADMIN" && agent!.role !== "MANAGER" && (
+          <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
+            Aucune tâche pour l&apos;instant. Un administrateur ou un manager doit d&apos;abord en créer une.
           </p>
         )}
         {total > 0 && (

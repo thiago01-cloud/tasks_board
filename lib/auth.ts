@@ -220,6 +220,28 @@ export async function requireAdmin() {
   return { agent };
 }
 
+// Whether `agent` may validate (mark DONE) or reject a task currently
+// awaiting validation — see TASK_STATUS_LABELS.TO_VALIDATE in
+// lib/enums.ts. Strictly the task's own creator; an admin only stands in
+// when that creator's Agent record no longer exists in the company (e.g.
+// they were removed since), so a task never gets permanently stuck with
+// nobody left able to close it out. Used by both PATCH /api/tasks/[id]
+// (the "Valider" transition to DONE) and POST /api/tasks/[id]/reject, plus
+// app/dashboard/tasks/[id]/page.tsx to decide whether to show those
+// actions at all.
+export async function canValidateTask(
+  agent: { id: string | null; role: string },
+  task: { creatorId: string; companyId: string }
+): Promise<boolean> {
+  if (agent.id && agent.id === task.creatorId) return true;
+  if (agent.role !== "ADMIN") return false;
+  const creatorStillPresent = await prisma.agent.findFirst({
+    where: { id: task.creatorId, companyId: task.companyId },
+    select: { id: true },
+  });
+  return !creatorStillPresent;
+}
+
 // Same as requireAgent(), but guarantees agent.id is set. Task/Comment/
 // Assignment/Notification all point at an Agent record (not a User), so
 // an owner needs one the first time they actually touch tasks — most

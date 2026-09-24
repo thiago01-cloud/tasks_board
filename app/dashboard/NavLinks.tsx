@@ -10,17 +10,20 @@ const LINKS: NavLink[] = [
   { href: "/dashboard/tasks", label: "Tâches" },
 ];
 
-const ADMIN_LINK: NavLink = { href: "/dashboard/team", label: "Équipe" };
+const TEAM_LINK: NavLink = { href: "/dashboard/team", label: "Équipe" };
 
 export default function NavLinks({
-  isAdmin,
+  showTeamLink,
   onNavigate,
 }: {
-  isAdmin: boolean;
+  // Team page is open to admins and managers (see app/dashboard/team/
+  // page.tsx's own comment) — not just admins, despite the prop's old
+  // name.
+  showTeamLink: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
+  const links = showTeamLink ? [...LINKS, TEAM_LINK] : LINKS;
 
   return (
     <nav className="dashboard-nav">

@@ -78,7 +78,7 @@ function ArrowUpIcon() {
   );
 }
 
-export default function TeamFabButtons() {
+export default function TeamFabButtons({ isAdmin }: { isAdmin: boolean }) {
   const [showTop, setShowTop] = useState(false);
 
   useEffect(() => {
@@ -103,13 +103,15 @@ export default function TeamFabButtons() {
           <ArrowUpIcon />
         </button>
       )}
-      <button type="button" className="team-fab-button" onClick={() => scrollToForm("add-agent-form")}>
-        <UserPlusIcon />
-        <span>Ajouter un agent</span>
-      </button>
+      {isAdmin && (
+        <button type="button" className="team-fab-button" onClick={() => scrollToForm("add-agent-form")}>
+          <UserPlusIcon />
+          <span>Ajouter un agent</span>
+        </button>
+      )}
       <button
         type="button"
-        className="team-fab-button team-fab-button-secondary"
+        className={`team-fab-button${isAdmin ? " team-fab-button-secondary" : ""}`}
         onClick={() => scrollToForm("add-group-form")}
       >
         <GroupPlusIcon />

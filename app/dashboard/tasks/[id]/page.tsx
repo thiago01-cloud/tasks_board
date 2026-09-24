@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getCurrentAgent } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentAgent, canValidateTask } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pageTitle } from "@/lib/constants";
 import TaskDetail from "./TaskDetail";
@@ -11,6 +11,9 @@ export const metadata = {
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const agent = await getCurrentAgent();
+  // Rare case: valid session cookie, but the agent/company/user it points
+  // at was deleted in the meantime — see dashboard/layout.tsx's own guard.
+  if (!agent) redirect("/login");
   const { id } = await params;
 
   const task = await prisma.task.findUnique({
@@ -41,8 +44,22 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     }),
   ]);
 
-  const canManage = agent!.role !== "MEMBER" || task.creatorId === agent!.id;
+  const isCreator = task.creatorId === agent!.id;
   const isAssignee = task.assignments.some((a) => a.agentId === agent!.id);
+  // Structural edits (the "Modifier" panel) and delete: any admin, or a
+  // manager but only on a task they created themselves — see
+  // PATCH/DELETE /api/tasks/[id]'s own comments for the full rule.
+  const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && isCreator);
+  // Status/progress stay open to whoever's actually working the task.
+  const canChangeStatus = canManage || isCreator || isAssignee;
+  // Whether this agent can validate/reject the task once it's TO_VALIDATE
+  // — see canValidateTask()'s own comment in lib/auth.ts. Computed here
+  // rather than passed the raw creatorId so TaskDetail (client-side)
+  // never has to reimplement the admin-fallback rule.
+  const canValidate = await canValidateTask(
+    { id: agent!.id, role: agent!.role },
+    { creatorId: task.creatorId, companyId: agent!.companyId }
+  );
 
   const taskData = {
     id: task.id,
@@ -53,6 +70,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     progress: task.progress,
     dueDate: task.dueDate ? task.dueDate.toISOString() : null,
     createdAt: task.createdAt.toISOString(),
+    completedAt: task.completedAt ? task.completedAt.toISOString() : null,
     creator: {
       id: task.creator.id,
       firstName: task.creator.user.firstName,
@@ -86,7 +104,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         }))}
         groups={groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.agents.map((a) => a.id) }))}
         canManage={canManage}
-        canChangeStatus={canManage || isAssignee}
+        canChangeStatus={canChangeStatus}
+        canValidate={canValidate}
         currentAgent={{ id: agent!.id || "", firstName: agent!.firstName, lastName: agent!.lastName }}
       />
     </div>

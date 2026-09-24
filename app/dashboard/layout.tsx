@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import Sidebar from "./Sidebar";
 import ConfirmProvider from "./ConfirmProvider";
+import AutoRefresh from "./AutoRefresh";
 
 export default async function DashboardLayout({
   children,
@@ -16,6 +17,7 @@ export default async function DashboardLayout({
 
   return (
     <ConfirmProvider>
+      <AutoRefresh />
       <div className="dashboard-layout">
         <Sidebar agent={agent} />
         <main className="main-content">{children}</main>

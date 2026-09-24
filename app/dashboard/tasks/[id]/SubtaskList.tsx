@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { progressColor } from "../CircularProgress";
 import { useConfirm } from "../../ConfirmProvider";
@@ -54,6 +54,22 @@ export default function SubtaskList({
   const [draftWeights, setDraftWeights] = useState<Record<string, string>>({});
   const [reweightError, setReweightError] = useState("");
   const [reweightLoading, setReweightLoading] = useState(false);
+
+  // Same reasoning as TaskDetail.tsx's own resync effect: `subtasks` is a
+  // local mirror of `initialSubtasks` (needed so toggling/reweighting can
+  // update the UI right away), so AutoRefresh's router.refresh() alone
+  // wouldn't reach it — this picks up another agent's subtask changes
+  // (toggled, added, removed, reweighted) once the server data actually
+  // differs, and reports the recomputed progress up to TaskDetail the same
+  // way this agent's own actions do. Skipped while a request of this
+  // agent's own is in flight or a form here is open, so a background
+  // refresh can't stomp on it mid-action.
+  useEffect(() => {
+    if (toggleLoadingId || deleteLoadingId || addLoading || reweightLoading || adjusting) return;
+    setSubtasks(initialSubtasks);
+    onProgressChange(initialSubtasks.reduce((sum, s) => (s.done ? sum + s.weight : sum), 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSubtasks]);
 
   function applyResult(next: SubtaskItem[]) {
     setSubtasks(next);

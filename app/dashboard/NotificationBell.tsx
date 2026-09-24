@@ -63,6 +63,19 @@ export default function NotificationBell() {
     load();
   }, []);
 
+  // Rides the same polling cadence as AutoRefresh.tsx (dashboard/layout.tsx)
+  // so a notification created for this agent by someone else's action
+  // (task assigned, à valider, rejetée...) shows up on the bell without a
+  // reload — no separate timer of its own.
+  useEffect(() => {
+    function handleTick() {
+      load();
+    }
+    window.addEventListener("app:refresh-tick", handleTick);
+    return () => window.removeEventListener("app:refresh-tick", handleTick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   TASK_STATUSES,
@@ -117,6 +117,26 @@ export default function TaskDetail({
   const [newComment, setNewComment] = useState("");
   const [commentError, setCommentError] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+
+  // status/progress/comments above are local mirrors of `task` (needed for
+  // optimistic updates), so a plain re-render from AutoRefresh.tsx's
+  // router.refresh() doesn't reach them on its own — useState only reads
+  // its initial value once, on mount. This re-syncs them whenever the
+  // *server* data actually changes, which is how another agent's edit
+  // (someone else moving the slider, validating, rejecting, commenting...)
+  // shows up here without a reload. Skipped while this agent has their own
+  // request in flight, or has a form/textarea open (editing/rejecting) —
+  // a background refresh landing mid-action must not stomp on it; it'll
+  // resync right after that action's own router.refresh() instead.
+  useEffect(() => {
+    if (statusLoading || progressLoading || validateLoading || rejectLoading || commentLoading) return;
+    if (editing || rejecting) return;
+    setStatus(task.status);
+    setProgress(task.progress);
+    setProgressDraft(task.progress);
+    setComments(task.comments);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.status, task.progress, task.comments]);
 
   async function handleStatusChange(next: string) {
     if (next === status) return;

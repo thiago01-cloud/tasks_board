@@ -40,7 +40,7 @@ export async function GET() {
     });
   } catch (err) {
     console.error("GET /api/notifications failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }
 
@@ -80,6 +80,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("PATCH /api/notifications failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }

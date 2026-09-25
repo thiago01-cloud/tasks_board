@@ -116,7 +116,7 @@ function GroupEditor({
       router.refresh();
       onDone();
     } catch {
-      setError("Impossible de contacter le serveur. Réessaie.");
+      setError("Impossible de contacter le serveur. Réessayez.");
       setLoading(false);
     }
   }
@@ -207,7 +207,7 @@ export default function GroupManager({
       setCreateLoading(false);
       router.refresh();
     } catch {
-      setCreateError("Impossible de contacter le serveur. Réessaie.");
+      setCreateError("Impossible de contacter le serveur. Réessayez.");
       setCreateLoading(false);
     }
   }
@@ -235,7 +235,7 @@ export default function GroupManager({
       setDeletingId(null);
       router.refresh();
     } catch {
-      setDeleteError("Impossible de contacter le serveur. Réessaie.");
+      setDeleteError("Impossible de contacter le serveur. Réessayez.");
       setDeletingId(null);
     }
   }

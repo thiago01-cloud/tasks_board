@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ subtasks: result }, { status: 201 });
   } catch (err) {
     console.error("POST /api/tasks/[id]/subtasks failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }
 
@@ -163,6 +163,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ subtasks: result });
   } catch (err) {
     console.error("PATCH /api/tasks/[id]/subtasks failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }

@@ -45,8 +45,23 @@ model User {
   // composeInternationalPhone() in lib/phone.ts). Also the number used for
   // WhatsApp alerts, so it must stay a real, reachable number.
   phone        String   @unique
+  // Nullable at the DB level (existing accounts may not have one), but the
+  // new "invite a teammate" flow (POST /api/agents + /api/agents/invite)
+  // requires it — it's how the invite link gets delivered, and how
+  // someone can log in with either their phone or their email (see
+  // POST /api/auth/login). Always stored lowercased/trimmed.
   email        String?  @unique
   passwordHash String
+  // Null means this account hasn't chosen its own password yet — true for
+  // every account created by the "invite a teammate" flow (see
+  // POST /api/agents/invite), which sets an unusable random placeholder
+  // hash and mails a one-time link instead (see accept-invite/route.ts and
+  // app/set-password). Set immediately at self-signup (POST
+  // /api/auth/signup) and the moment an invited account completes
+  // app/set-password. dashboard/layout.tsx redirects here first, before
+  // anything else, whenever it's still null — see needsPasswordSetup() in
+  // lib/auth.ts.
+  passwordSetAt DateTime?
   avatarUrl    String?
   createdAt    DateTime @default(now())
 

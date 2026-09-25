@@ -21,12 +21,16 @@ export default function PhoneField({
   phone,
   onPhoneChange,
   required = true,
+  label = "Téléphone",
 }: {
   country: string;
   onCountryChange: (code: string) => void;
   phone: string;
   onPhoneChange: (value: string) => void;
   required?: boolean;
+  // e.g. "Numéro WhatsApp" in TeamForm.tsx's invite step, where the number
+  // doubles as the wa.me contact used for the WhatsApp invite option.
+  label?: string;
 }) {
   const selected = COUNTRIES.find((c) => c.code === country);
   const [open, setOpen] = useState(false);
@@ -79,7 +83,8 @@ export default function PhoneField({
 
         <div className="field">
           <label htmlFor="phone">
-            Téléphone{selected ? ` (${selected.dialCode})` : ""}
+            {label}
+            {selected ? ` (${selected.dialCode})` : ""}
           </label>
           <input
             id="phone"

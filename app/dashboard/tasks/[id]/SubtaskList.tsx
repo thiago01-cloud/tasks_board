@@ -99,7 +99,7 @@ export default function SubtaskList({
         setNewTitle("");
       }
     } catch {
-      setAddError("Impossible de contacter le serveur. Réessaie.");
+      setAddError("Impossible de contacter le serveur. Réessayez.");
     }
     setAddLoading(false);
   }
@@ -186,7 +186,7 @@ export default function SubtaskList({
         setAdjusting(false);
       }
     } catch {
-      setReweightError("Impossible de contacter le serveur. Réessaie.");
+      setReweightError("Impossible de contacter le serveur. Réessayez.");
     }
     setReweightLoading(false);
   }

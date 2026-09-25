@@ -194,9 +194,21 @@ export async function getCurrentAgent() {
     country: session.user.country,
     phone: session.user.phone,
     email: session.user.email,
+    // Null until this account has chosen its own password — see
+    // needsPasswordSetup() below and passwordSetAt's own comment in
+    // prisma/schema.prisma.
+    passwordSetAt: session.user.passwordSetAt,
     role: session.role === "OWNER" ? "ADMIN" : session.role,
     displayRole: session.role, // "OWNER" | "ADMIN" | "MANAGER" | "MEMBER", for display
   };
+}
+
+// True once this account still needs to go through app/set-password before
+// touching anything else — see dashboard/layout.tsx, which is the one
+// place this actually gets enforced (a redirect there, checked right after
+// the existing "no agent/company" guard).
+export function needsPasswordSetup(agent: { passwordSetAt: Date | null }): boolean {
+  return !agent.passwordSetAt;
 }
 
 // Reusable guards for API routes: return either `{ agent }` or `{ error }`

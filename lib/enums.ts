@@ -57,7 +57,7 @@ export const TASK_PRIORITY_COLORS: Record<string, string> = {
 // and POST /api/tasks/[id]/comments — surfaced by the bell in the sidebar
 // (NotificationBell.tsx).
 export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  TASK_ASSIGNED: "Assignée à toi",
+  TASK_ASSIGNED: "Assignée à vous",
   TASK_STATUS_CHANGED: "Statut changé",
   TASK_PROGRESS_UPDATED: "Avancement mis à jour",
   TASK_UPDATED: "Tâche modifiée",

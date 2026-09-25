@@ -2,37 +2,28 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import PhoneField from "../components/PhoneField";
-import { getCountry } from "@/lib/countries";
-import { composeInternationalPhone } from "@/lib/phone";
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [country, setCountry] = useState("");
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const noticeUsed = searchParams.get("notice") === "invite_used";
+  const errorExpired = searchParams.get("error") === "invite_invalid";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (!country) {
-      setError("Le pays est requis.");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const countryInfo = getCountry(country);
-      const fullPhone = countryInfo ? composeInternationalPhone(countryInfo.dialCode, phone) : "";
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: fullPhone, password }),
+        body: JSON.stringify({ identifier, password }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -67,12 +58,28 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} style={{ width: "100%", maxWidth: 360 }}>
-      <PhoneField
-        country={country}
-        onCountryChange={setCountry}
-        phone={phone}
-        onPhoneChange={setPhone}
-      />
+      {noticeUsed && (
+        <p style={{ fontSize: 13.5, color: "var(--color-text-muted)", margin: "0 0 14px" }}>
+          Ce lien d&apos;invitation a déjà été utilisé — connectez-vous avec votre mot de passe.
+        </p>
+      )}
+      {errorExpired && (
+        <p className="error-message" style={{ margin: "0 0 14px" }}>
+          Ce lien d&apos;invitation est invalide ou a expiré.
+        </p>
+      )}
+
+      <div className="field">
+        <label htmlFor="identifier">Téléphone ou email</label>
+        <input
+          id="identifier"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          placeholder="ex. 074582442 ou membre@exemple.com"
+          autoComplete="username"
+          required
+        />
+      </div>
 
       <div className="field">
         <label htmlFor="password">Mot de passe</label>

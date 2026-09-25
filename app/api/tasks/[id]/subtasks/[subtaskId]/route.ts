@@ -88,7 +88,7 @@ export async function PATCH(
     return NextResponse.json({ subtasks: result });
   } catch (err) {
     console.error("PATCH /api/tasks/[id]/subtasks/[subtaskId] failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }
 
@@ -153,6 +153,6 @@ export async function DELETE(
     return NextResponse.json({ subtasks: result });
   } catch (err) {
     console.error("DELETE /api/tasks/[id]/subtasks/[subtaskId] failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }

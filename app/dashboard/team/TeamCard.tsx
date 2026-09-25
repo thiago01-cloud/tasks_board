@@ -73,7 +73,7 @@ export default function TeamCard({
 
       router.refresh();
     } catch {
-      setError("Impossible de contacter le serveur. Réessaie.");
+      setError("Impossible de contacter le serveur. Réessayez.");
       setLoading(false);
     }
   }
@@ -85,7 +85,7 @@ export default function TeamCard({
         <div className="team-card-identity">
           <p className="team-card-name">
             {agent.firstName} {agent.lastName}
-            {isMe && " (toi)"}
+            {isMe && " (vous)"}
           </p>
           <p className="team-card-role">{AGENT_ROLE_LABELS[agent.role] || "Membre"}</p>
         </div>

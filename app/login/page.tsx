@@ -26,7 +26,7 @@ export default function LoginPage() {
       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
         <Logo size="large" />
         <p style={{ color: "var(--color-text-muted)", margin: 0, fontSize: 14 }}>
-          Connexion à ton espace
+          Connexion à votre espace
         </p>
       </div>
 

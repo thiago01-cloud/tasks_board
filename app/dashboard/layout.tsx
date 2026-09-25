@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentAgent } from "@/lib/auth";
+import { getCurrentAgent, needsPasswordSetup } from "@/lib/auth";
 import Sidebar from "./Sidebar";
 import ConfirmProvider from "./ConfirmProvider";
 import AutoRefresh from "./AutoRefresh";
@@ -14,6 +14,10 @@ export default async function DashboardLayout({
   // Rare case: the token is valid but the agent/company was deleted
   // in the meantime.
   if (!agent) redirect("/login");
+  // An account invited via POST /api/agents/invite is logged in
+  // (GET /api/auth/accept-invite) before it has ever chosen its own
+  // password — nothing else in the dashboard is reachable until it does.
+  if (needsPasswordSetup(agent)) redirect("/set-password");
 
   return (
     <ConfirmProvider>

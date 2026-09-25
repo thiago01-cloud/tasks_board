@@ -28,7 +28,7 @@ export async function GET() {
     });
   } catch (err) {
     console.error("GET /api/groups failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }
 
@@ -71,6 +71,6 @@ export async function POST(request: Request) {
     );
   } catch (err) {
     console.error("POST /api/groups failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }

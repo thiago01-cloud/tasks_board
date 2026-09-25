@@ -48,6 +48,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {
     console.error("POST /api/tasks/[id]/comments failed:", err);
-    return NextResponse.json({ error: "Erreur serveur. Réessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });
   }
 }

@@ -45,7 +45,7 @@ export default function TaskForm({ members, groups }: { members: MemberOption[];
       router.push(`/dashboard/tasks/${data.task.id}`);
       router.refresh();
     } catch {
-      setError("Impossible de contacter le serveur. Réessaie.");
+      setError("Impossible de contacter le serveur. Réessayez.");
       setLoading(false);
     }
   }

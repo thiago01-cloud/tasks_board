@@ -121,7 +121,7 @@ export default function SignupForm() {
               ? composeInternationalPhone(getCountry(country)!.dialCode, phone)
               : phone}
           </strong>
-          . Entre ton mot de passe pour te connecter.
+          . Entrez votre mot de passe pour vous connecter.
         </p>
 
         <div className="field">

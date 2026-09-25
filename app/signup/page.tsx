@@ -26,7 +26,7 @@ export default function SignupPage() {
       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
         <Logo size="large" />
         <p style={{ color: "var(--color-text-muted)", margin: 0, fontSize: 14 }}>
-          Crée ton compte pour démarrer ton entreprise
+          Créez votre compte pour démarrer votre entreprise
         </p>
       </div>
 

@@ -40,8 +40,8 @@ export default async function CreateCompanyPage() {
         <Logo size="large" />
         <p style={{ color: "var(--color-text-muted)", margin: 0, fontSize: 14 }}>
           {hasCompany
-            ? "Crée une nouvelle entreprise"
-            : "Crée ta première entreprise pour commencer"}
+            ? "Créez une nouvelle entreprise"
+            : "Créez votre première entreprise pour commencer"}
         </p>
       </div>
 

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const lastName = (body.lastName || "").trim();
   const country = (body.country || "").trim().toUpperCase();
   const password = body.password || "";
-  const email = body.email?.trim() || null;
+  const email = body.email?.trim().toLowerCase() || null;
 
   const countryInfo = getCountry(country);
   // `phone` is composed server-side from the country's dial code + the
@@ -53,7 +53,10 @@ export async function POST(request: Request) {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { firstName, lastName, country, phone, passwordHash, email },
+    // Self-signup chooses its own password right here, unlike an invited
+    // teammate (see POST /api/agents/invite) — passwordSetAt is set
+    // immediately so it's never sent to app/set-password.
+    data: { firstName, lastName, country, phone, passwordHash, email, passwordSetAt: new Date() },
   });
 
   // A brand new account has no company yet: set a pre-session while it

@@ -33,7 +33,7 @@ export default async function ChooseCompanyPage() {
       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
         <Logo size="large" />
         <p style={{ color: "var(--color-text-muted)", margin: 0, fontSize: 14 }}>
-          Choisis l&apos;entreprise dans laquelle tu veux te rendre
+          Choisissez l&apos;entreprise dans laquelle vous voulez vous rendre
         </p>
       </div>
 

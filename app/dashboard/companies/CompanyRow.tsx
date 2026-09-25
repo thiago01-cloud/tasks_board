@@ -92,7 +92,7 @@ export default function CompanyRow({
     const ok = await confirm({
       title: `Supprimer "${company.name}" ?`,
       message: isActive
-        ? "Cette entreprise est celle sur laquelle tu es actuellement connecté. Toutes ses tâches, tous ses membres et tous ses groupes seront définitivement supprimés. Cette action est irréversible."
+        ? "Cette entreprise est celle sur laquelle vous êtes actuellement connecté(e). Toutes ses tâches, tous ses membres et tous ses groupes seront définitivement supprimés. Cette action est irréversible."
         : "Toutes ses tâches, tous ses membres et tous ses groupes seront définitivement supprimés. Cette action est irréversible.",
       confirmLabel: "Supprimer définitivement",
       danger: true,

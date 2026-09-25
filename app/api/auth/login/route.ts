@@ -6,32 +6,39 @@ import {
   createSession,
   getAccessibleCompanies,
 } from "@/lib/auth";
-import { normalizePhone } from "@/lib/phone";
+import { looksLikeEmail, resolvePhoneQuery } from "@/lib/phone";
 
 export async function POST(request: Request) {
-  let body: { phone?: string; password?: string };
+  let body: { identifier?: string; password?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  const phone = normalizePhone(body.phone || "");
+  const identifier = (body.identifier || "").trim();
   const password = body.password || "";
 
-  if (!phone || !password) {
+  if (!identifier || !password) {
     return NextResponse.json(
-      { error: "Numéro de téléphone et mot de passe requis." },
+      { error: "Numéro de téléphone (ou email) et mot de passe requis." },
       { status: 400 }
     );
   }
 
-  const user = await prisma.user.findUnique({ where: { phone } });
+  // A single field accepts either — see PhoneField's replacement in
+  // LoginForm.tsx. Email is matched as typed (lowercased); phone goes
+  // through the same lookup normalization as POST /api/agents (accepts a
+  // bare Gabon national number, an explicit "+", or a "00" IDD prefix).
+  const isEmail = looksLikeEmail(identifier);
+  const user = isEmail
+    ? await prisma.user.findUnique({ where: { email: identifier.toLowerCase() } })
+    : await prisma.user.findUnique({ where: { phone: resolvePhoneQuery(identifier) } });
 
-  // Deliberately identical message in both cases (unknown number or wrong
-  // password), so an attacker can't tell whether the number exists.
+  // Deliberately identical message in both cases (unknown identifier or
+  // wrong password), so an attacker can't tell whether the account exists.
   const invalidCredentials = () =>
-    NextResponse.json({ error: "Numéro de téléphone ou mot de passe incorrect." }, { status: 401 });
+    NextResponse.json({ error: "Identifiant ou mot de passe incorrect." }, { status: 401 });
 
   if (!user) return invalidCredentials();
 

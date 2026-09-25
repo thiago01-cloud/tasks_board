@@ -172,7 +172,7 @@ export default function TaskDetail({
       setStatus(previous);
       setProgress(previousProgress);
       setProgressDraft(previousProgress);
-      setStatusError("Impossible de contacter le serveur. Réessaie.");
+      setStatusError("Impossible de contacter le serveur. Réessayez.");
     }
     setStatusLoading(false);
   }
@@ -203,7 +203,7 @@ export default function TaskDetail({
         router.refresh();
       }
     } catch {
-      setValidateError("Impossible de contacter le serveur. Réessaie.");
+      setValidateError("Impossible de contacter le serveur. Réessayez.");
     }
     setValidateLoading(false);
   }
@@ -237,7 +237,7 @@ export default function TaskDetail({
       setRejectLoading(false);
       router.refresh();
     } catch {
-      setRejectError("Impossible de contacter le serveur. Réessaie.");
+      setRejectError("Impossible de contacter le serveur. Réessayez.");
       setRejectLoading(false);
     }
   }
@@ -278,7 +278,7 @@ export default function TaskDetail({
       setProgress(previous);
       setProgressDraft(previous);
       setStatus(previousStatus);
-      setProgressError("Impossible de contacter le serveur. Réessaie.");
+      setProgressError("Impossible de contacter le serveur. Réessayez.");
     }
     setProgressLoading(false);
   }
@@ -323,7 +323,7 @@ export default function TaskDetail({
       setEditing(false);
       router.refresh();
     } catch {
-      setEditError("Impossible de contacter le serveur. Réessaie.");
+      setEditError("Impossible de contacter le serveur. Réessayez.");
       setEditLoading(false);
     }
   }
@@ -350,7 +350,7 @@ export default function TaskDetail({
       router.push("/dashboard/tasks");
       router.refresh();
     } catch {
-      alert("Impossible de contacter le serveur. Réessaie.");
+      alert("Impossible de contacter le serveur. Réessayez.");
       setDeleteLoading(false);
     }
   }
@@ -380,7 +380,7 @@ export default function TaskDetail({
       setCommentLoading(false);
       router.refresh();
     } catch {
-      setCommentError("Impossible de contacter le serveur. Réessaie.");
+      setCommentError("Impossible de contacter le serveur. Réessayez.");
       setCommentLoading(false);
     }
   }
@@ -572,7 +572,7 @@ export default function TaskDetail({
             {canValidate && !rejecting && (
               <div>
                 <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "var(--color-text-muted)" }}>
-                  La tâche est à 100% et attend ta validation.
+                  La tâche est à 100% et attend votre validation.
                 </p>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button type="button" className="button" onClick={handleValidate} disabled={validateLoading}>

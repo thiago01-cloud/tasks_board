@@ -4,11 +4,7 @@ import { hashPassword, requireAdmin, type AgentRole } from "@/lib/auth";
 import { composeInternationalPhone, toWhatsAppNumber } from "@/lib/phone";
 import { getCountry } from "@/lib/countries";
 import { buildInviteUrl, inviteMessage } from "@/lib/invite";
-import { flattenAgent } from "../route";
-
-const AGENT_INCLUDE = {
-  user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
-} as const;
+import { AGENT_INCLUDE, flattenAgent } from "@/lib/agents";
 
 // Step 2 of adding a teammate, only reached once POST /api/agents (step 1)
 // came back with `found: false` — nobody with that phone/email exists yet.

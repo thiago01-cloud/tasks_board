@@ -1,29 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, type AgentRole } from "@/lib/auth";
-
-export function flattenAgent(a: {
-  id: string;
-  role: string;
-  joinedAt: Date;
-  userId: string;
-  user: { id: string; firstName: string; lastName: string; phone: string; email: string | null };
-}) {
-  return {
-    id: a.id,
-    role: a.role,
-    joinedAt: a.joinedAt,
-    userId: a.userId,
-    firstName: a.user.firstName,
-    lastName: a.user.lastName,
-    phone: a.user.phone,
-    email: a.user.email,
-  };
-}
-
-const AGENT_INCLUDE = {
-  user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
-} as const;
+import { AGENT_INCLUDE, flattenAgent } from "@/lib/agents";
 
 export async function GET() {
   const { agent, error } = await requireAdmin();

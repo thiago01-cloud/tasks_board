@@ -43,6 +43,8 @@ type TaskData = {
   priority: string;
   progress: number;
   dueDate: string | null;
+  linkUrl: string | null;
+  imageUrl: string | null;
   createdAt: string;
   completedAt: string | null;
   creator: { id: string; firstName: string; lastName: string };
@@ -107,6 +109,8 @@ export default function TaskDetail({
   const [editDescription, setEditDescription] = useState(task.description || "");
   const [editPriority, setEditPriority] = useState(task.priority);
   const [editDueDate, setEditDueDate] = useState(task.dueDate ? toDatetimeLocalValue(task.dueDate) : "");
+  const [editLinkUrl, setEditLinkUrl] = useState(task.linkUrl || "");
+  const [editImageUrl, setEditImageUrl] = useState(task.imageUrl || "");
   const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(task.assigneeIds);
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -288,6 +292,8 @@ export default function TaskDetail({
     setEditDescription(task.description || "");
     setEditPriority(task.priority);
     setEditDueDate(task.dueDate ? toDatetimeLocalValue(task.dueDate) : "");
+    setEditLinkUrl(task.linkUrl || "");
+    setEditImageUrl(task.imageUrl || "");
     setEditAssigneeIds(task.assigneeIds);
     setEditError("");
     setEditing(true);
@@ -307,6 +313,8 @@ export default function TaskDetail({
           description: editDescription,
           priority: editPriority,
           dueDate: fromDatetimeLocalValue(editDueDate),
+          linkUrl: editLinkUrl,
+          imageUrl: editImageUrl,
           assigneeIds: editAssigneeIds,
           groupIds: fullyAssignedGroupIds(groups, editAssigneeIds),
         }),
@@ -419,6 +427,37 @@ export default function TaskDetail({
             {!task.description && (
               <p style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}>Aucune description.</p>
             )}
+
+            {task.linkUrl && (
+              <p style={{ margin: "0 0 10px" }}>
+                <a
+                  href={task.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--color-primary)", fontSize: 13.5, wordBreak: "break-all" }}
+                >
+                  🔗 {task.linkUrl}
+                </a>
+              </p>
+            )}
+            {task.imageUrl && (
+              // Plain <img>, not next/image: the URL is whatever the user
+              // pasted (any domain), and next/image would need that
+              // domain allow-listed in next.config first.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={task.imageUrl}
+                alt=""
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: 280,
+                  borderRadius: 8,
+                  border: "1px solid var(--color-border)",
+                  display: "block",
+                  marginBottom: 10,
+                }}
+              />
+            )}
           </>
         )}
 
@@ -478,6 +517,26 @@ export default function TaskDetail({
                 type="datetime-local"
                 value={editDueDate}
                 onChange={(e) => setEditDueDate(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="editLinkUrl">Lien (optionnel)</label>
+              <input
+                id="editLinkUrl"
+                type="url"
+                placeholder="https://..."
+                value={editLinkUrl}
+                onChange={(e) => setEditLinkUrl(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="editImageUrl">Image — URL (optionnel)</label>
+              <input
+                id="editImageUrl"
+                type="url"
+                placeholder="https://..."
+                value={editImageUrl}
+                onChange={(e) => setEditImageUrl(e.target.value)}
               />
             </div>
             <div className="field">

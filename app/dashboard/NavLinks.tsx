@@ -11,19 +11,25 @@ const LINKS: NavLink[] = [
 ];
 
 const TEAM_LINK: NavLink = { href: "/dashboard/team", label: "Équipe" };
+const SUBSCRIPTION_LINK: NavLink = { href: "/dashboard/subscription", label: "Abonnement" };
 
 export default function NavLinks({
   showTeamLink,
+  showSubscriptionLink,
   onNavigate,
 }: {
   // Team page is open to admins and managers (see app/dashboard/team/
   // page.tsx's own comment) — not just admins, despite the prop's old
   // name.
   showTeamLink: boolean;
+  // Abonnement is billing-adjacent — admin-only, narrower than the team
+  // link above (see app/dashboard/subscription/page.tsx's own guard).
+  showSubscriptionLink: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const links = showTeamLink ? [...LINKS, TEAM_LINK] : LINKS;
+  let links = showTeamLink ? [...LINKS, TEAM_LINK] : LINKS;
+  if (showSubscriptionLink) links = [...links, SUBSCRIPTION_LINK];
 
   return (
     <nav className="dashboard-nav">

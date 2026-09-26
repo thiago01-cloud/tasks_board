@@ -78,7 +78,18 @@ model User {
 model Company {
   id        String   @id @default(cuid())
   name      String
+  // References PricingTier.id below (loosely — not a real relation/FK: the
+  // default "free" is a sentinel for "hasn't chosen a tier yet" and
+  // deliberately doesn't correspond to any PricingTier row, so this can't
+  // be a required foreign key). See app/dashboard/subscription.
   plan      String   @default("free")
+  // Add-on option ids (PricingAddOn.id below) the company has switched on
+  // for its chosen plan — same loose-reference reasoning as `plan`: a
+  // plain string array (native Postgres array, no join table needed)
+  // rather than a real relation. Vitrine only for now — see
+  // AddOnsPanel.tsx's own comment: nothing behind either add-on is
+  // actually functional yet.
+  addOns    String[] @default([])
   createdAt DateTime @default(now())
 
   ownerId String
@@ -89,6 +100,51 @@ model Company {
   groups Group[]
 
   @@map("companies")
+}
+
+// The subscription tiers shown on app/dashboard/subscription, one row per
+// bracket of member count — moved here from a hardcoded list in
+// lib/pricing.ts specifically so prices/taglines/brackets can be edited
+// straight from Prisma Studio (`npm run db:studio`) without touching code
+// or redeploying. `id` is a readable slug (e.g. "starter"), not a cuid,
+// since it's also what Company.plan stores. See prisma/seed.js for the
+// initial rows and lib/pricing.ts for the read helpers.
+model PricingTier {
+  id             String  @id
+  name           String
+  minMembers     Int
+  maxMembers     Int? // null = no upper bound (e.g. "51+")
+  priceFcfa      Int? // null = "sur devis" (custom quote, no self-serve price)
+  priceEurApprox Float? // rounded approximation for reference only, not a live conversion
+  priceUsdApprox Float?
+  tagline        String
+  support        String
+  // Display order on the subscription page — DB rows have no inherent
+  // order, unlike the array this replaces.
+  order          Int     @default(0)
+  // Lets a tier be retired from display without deleting the row (which
+  // would orphan any Company.plan still pointing at its id).
+  active         Boolean @default(true)
+
+  @@map("pricing_tiers")
+}
+
+// The add-on options shown once a tier is chosen — same reasoning and
+// same DB-for-easy-editing pattern as PricingTier above. Both "unit"
+// values (member/agent) mean the same headcount (an Agent row) here; the
+// wording just matches how each option was described when proposed.
+model PricingAddOn {
+  id               String  @id
+  name             String
+  unit             String // "member" | "agent" — display label only
+  pricePerUnitFcfa Int
+  priceEurApprox   Float
+  priceUsdApprox   Float
+  description      String
+  order            Int     @default(0)
+  active           Boolean @default(true)
+
+  @@map("pricing_add_ons")
 }
 
 // A team/department within a company (e.g. "Ventes", "Support") — used to
@@ -154,6 +210,16 @@ model Agent {
   createdBy        Agent?   @relation("AgentCreator", fields: [createdByAgentId], references: [id], onDelete: SetNull)
   createdAgents     Agent[]  @relation("AgentCreator")
 
+  // Delegated right to manage the company's subscription (choose/change/
+  // cancel the plan, toggle add-ons — see app/dashboard/subscription and
+  // requireSubscriptionManager() in lib/auth.ts), granted by the company's
+  // OWNER only (see PATCH /api/agents/[id]/subscription-manager and
+  // TeamCard.tsx's own toggle). The owner can always manage the
+  // subscription regardless of this flag — it's how the owner extends
+  // that right to someone else, never how the owner grants it to
+  // themselves.
+  canManageSubscription Boolean @default(false)
+
   createdTasks  Task[]         @relation("TaskCreator")
   createdGroups Group[]        @relation("GroupCreator")
   assignments   Assignment[]
@@ -184,6 +250,13 @@ model Task {
   creator     Agent     @relation("TaskCreator", fields: [creatorId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  // Optional attachments, set/edited the same way as title/description
+  // (see PATCH /api/tasks/[id] and TaskDetail.tsx's "Modifier" panel) —
+  // just a URL each, no file upload/storage service behind them: linkUrl
+  // is any external link relevant to the task, imageUrl is shown as an
+  // inline preview instead of a plain link.
+  linkUrl     String?
+  imageUrl    String?
 
   assignments   Assignment[]
   comments      Comment[]

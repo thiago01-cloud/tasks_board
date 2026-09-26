@@ -11,7 +11,16 @@ import type { getCurrentAgent } from "@/lib/auth";
 
 type Agent = NonNullable<Awaited<ReturnType<typeof getCurrentAgent>>>;
 
-export default function Sidebar({ agent }: { agent: Agent }) {
+export default function Sidebar({
+  agent,
+  showSubscriptionLink,
+}: {
+  agent: Agent;
+  // Computed server-side in layout.tsx (canManageSubscription() needs a
+  // DB read for an owner-delegated agent, which this client component
+  // can't do itself) — see that helper's own comment.
+  showSubscriptionLink: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -58,6 +67,7 @@ export default function Sidebar({ agent }: { agent: Agent }) {
 
         <NavLinks
           showTeamLink={agent.role === "ADMIN" || agent.role === "MANAGER"}
+          showSubscriptionLink={showSubscriptionLink}
           onNavigate={() => setOpen(false)}
         />
 

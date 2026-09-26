@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured, canValidateTask } from "@/lib/auth";
 import { TASK_STATUSES, TASK_PRIORITIES } from "@/lib/enums";
+import { normalizeOptionalUrl } from "@/lib/urls";
 
 async function loadTaskForCompany(id: string, companyId: string) {
   const task = await prisma.task.findUnique({
@@ -154,6 +155,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       body.description !== undefined ||
       body.priority !== undefined ||
       body.dueDate !== undefined ||
+      body.linkUrl !== undefined ||
+      body.imageUrl !== undefined ||
       body.assigneeIds !== undefined ||
       body.groupIds !== undefined;
 
@@ -195,6 +198,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           data.dueDate = parsed;
         }
       }
+      if (body.linkUrl !== undefined) {
+        const result = normalizeOptionalUrl(body.linkUrl);
+        if (!result.ok) {
+          return NextResponse.json({ error: "Lien invalide." }, { status: 400 });
+        }
+        data.linkUrl = result.url;
+      }
+      if (body.imageUrl !== undefined) {
+        const result = normalizeOptionalUrl(body.imageUrl);
+        if (!result.ok) {
+          return NextResponse.json({ error: "URL d'image invalide." }, { status: 400 });
+        }
+        data.imageUrl = result.url;
+      }
     }
 
     if (Object.keys(data).length === 0 && body.assigneeIds === undefined && body.groupIds === undefined) {
@@ -213,7 +230,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       (data.description !== undefined && data.description !== task.description) ||
       (data.priority !== undefined && data.priority !== task.priority) ||
       (data.dueDate !== undefined &&
-        (data.dueDate ? data.dueDate.getTime() : null) !== (task.dueDate ? task.dueDate.getTime() : null));
+        (data.dueDate ? data.dueDate.getTime() : null) !== (task.dueDate ? task.dueDate.getTime() : null)) ||
+      (data.linkUrl !== undefined && data.linkUrl !== task.linkUrl) ||
+      (data.imageUrl !== undefined && data.imageUrl !== task.imageUrl);
 
     await prisma.$transaction(async (tx) => {
       if (Object.keys(data).length > 0) {

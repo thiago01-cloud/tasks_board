@@ -15,6 +15,7 @@ type TeamMember = {
   email: string | null;
   role: string;
   groupNames: string[];
+  canManageSubscription: boolean;
 };
 
 function MailIcon() {
@@ -43,6 +44,7 @@ export default function TeamCard({
   isMe,
   canManage,
   canDelete,
+  canGrantSubscriptionManager,
 }: {
   agent: TeamMember;
   isMe: boolean;
@@ -55,11 +57,18 @@ export default function TeamCard({
   // POST /api/agents/invite/link).
   canManage: boolean;
   canDelete: boolean;
+  // Whether the VIEWER is the company's owner — the only account allowed
+  // to grant/revoke this teammate's right to manage the subscription
+  // (app/dashboard/subscription). True or false for every row the owner
+  // sees; always false for anyone else viewing the team page.
+  canGrantSubscriptionManager: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [subscriptionManager, setSubscriptionManager] = useState(agent.canManageSubscription);
+  const [subscriptionManagerLoading, setSubscriptionManagerLoading] = useState(false);
 
   // "Partager le lien de connexion" — lets an admin or manager (re)send
   // this teammate's magic login link at any time, not just right after
@@ -156,6 +165,42 @@ export default function TeamCard({
     }
   }
 
+  async function handleToggleSubscriptionManager() {
+    const next = !subscriptionManager;
+    const ok = await confirm({
+      title: next
+        ? `Autoriser ${agent.firstName} ${agent.lastName} à gérer l'abonnement ?`
+        : `Retirer à ${agent.firstName} ${agent.lastName} le droit de gérer l'abonnement ?`,
+      message: next
+        ? "Cette personne pourra choisir, changer ou résilier l'offre de l'entreprise, et gérer les options additionnelles."
+        : undefined,
+      confirmLabel: next ? "Autoriser" : "Retirer",
+    });
+    if (!ok) return;
+
+    setSubscriptionManagerLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/subscription-manager`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canManageSubscription: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data.error || "Une erreur est survenue.");
+        setSubscriptionManagerLoading(false);
+        return;
+      }
+
+      setSubscriptionManager(next);
+      router.refresh();
+    } catch {
+      setError("Impossible de contacter le serveur. Réessayez.");
+    }
+    setSubscriptionManagerLoading(false);
+  }
+
   return (
     <div className="card team-card">
       <div className="team-card-top">
@@ -180,6 +225,11 @@ export default function TeamCard({
             </span>
           ))
         )}
+        {subscriptionManager && (
+          <span className="badge" style={{ color: "var(--color-success)", borderColor: "var(--color-success)" }}>
+            Gère l&apos;abonnement
+          </span>
+        )}
       </div>
 
       <div className="team-card-contact">
@@ -193,7 +243,7 @@ export default function TeamCard({
         </span>
       </div>
 
-      {!isMe && (canManage || canDelete) && (
+      {!isMe && (canManage || canDelete || canGrantSubscriptionManager) && (
         <div className="team-card-actions">
           {canManage && (
             <button
@@ -202,6 +252,21 @@ export default function TeamCard({
               onClick={handleOpenInvite}
             >
               Partager le lien de connexion
+            </button>
+          )}
+          {canGrantSubscriptionManager && (
+            <button
+              className="button-secondary button"
+              style={{ padding: "5px 10px", fontSize: 13 }}
+              onClick={handleToggleSubscriptionManager}
+              disabled={subscriptionManagerLoading}
+              title="Droit de gérer l'abonnement de l'entreprise (offre, options)"
+            >
+              {subscriptionManagerLoading
+                ? "..."
+                : subscriptionManager
+                ? "Retirer la gestion de l'abonnement"
+                : "Autoriser la gestion de l'abonnement"}
             </button>
           )}
           {canDelete && (

@@ -68,4 +68,10 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   // Sent to its assignees when that validation is refused — see POST
   // /api/tasks/[id]/reject.
   TASK_REJECTED: "Renvoyée en cours",
+  // Sent by the cron job in app/api/cron/task-alerts/route.ts once a
+  // task's "temps imparti" (creation → échéance, same convention as the
+  // Performance readout in TaskDetail.tsx) has half/two-thirds elapsed —
+  // one-shot per task per threshold, to its creator and every assignee.
+  TASK_HALF_TIME_ELAPSED: "Moitié du délai écoulée",
+  TASK_TWO_THIRDS_TIME_ELAPSED: "Deux tiers du délai écoulés",
 };

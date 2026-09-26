@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
 import { TASK_PRIORITIES } from "@/lib/enums";
 import { validGroupIds } from "@/lib/groups";
+import { normalizeOptionalUrl } from "@/lib/urls";
 
 // Creates a task in the current company. Reserved for admins (which
 // includes a company's OWNER — see getCurrentAgent()'s role normalization
@@ -47,6 +48,15 @@ export async function POST(request: Request) {
       if (!Number.isNaN(parsed.getTime())) dueDate = parsed;
     }
 
+    const linkResult = normalizeOptionalUrl(body.linkUrl);
+    if (!linkResult.ok) {
+      return NextResponse.json({ error: "Lien invalide." }, { status: 400 });
+    }
+    const imageResult = normalizeOptionalUrl(body.imageUrl);
+    if (!imageResult.ok) {
+      return NextResponse.json({ error: "URL d'image invalide." }, { status: 400 });
+    }
+
     if (!title) {
       return NextResponse.json({ error: "Le titre est requis." }, { status: 400 });
     }
@@ -67,6 +77,8 @@ export async function POST(request: Request) {
           description,
           priority,
           dueDate,
+          linkUrl: linkResult.url,
+          imageUrl: imageResult.url,
           creatorId: agent!.id,
           assignments: {
             create: validAssignees.map((a) => ({ agentId: a.id })),

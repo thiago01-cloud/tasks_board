@@ -12,6 +12,8 @@ export default function TaskForm({ members, groups }: { members: MemberOption[];
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("NORMAL");
   const [dueDate, setDueDate] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,8 @@ export default function TaskForm({ members, groups }: { members: MemberOption[];
           description,
           priority,
           dueDate: fromDatetimeLocalValue(dueDate),
+          linkUrl,
+          imageUrl,
           assigneeIds,
           groupIds: fullyAssignedGroupIds(groups, assigneeIds),
         }),
@@ -85,6 +89,28 @@ export default function TaskForm({ members, groups }: { members: MemberOption[];
           type="datetime-local"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="linkUrl">Lien (optionnel)</label>
+        <input
+          id="linkUrl"
+          type="url"
+          placeholder="https://..."
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="imageUrl">Image — URL (optionnel)</label>
+        <input
+          id="imageUrl"
+          type="url"
+          placeholder="https://..."
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
         />
       </div>
 

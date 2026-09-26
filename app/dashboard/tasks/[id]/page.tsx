@@ -69,6 +69,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     priority: task.priority,
     progress: task.progress,
     dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+    linkUrl: task.linkUrl,
+    imageUrl: task.imageUrl,
     createdAt: task.createdAt.toISOString(),
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
     creator: {

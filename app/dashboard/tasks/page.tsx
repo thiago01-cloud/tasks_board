@@ -126,6 +126,8 @@ export default async function TasksPage({
     priority: task.priority,
     progress: task.progress,
     dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+    hasLink: !!task.linkUrl,
+    hasImage: !!task.imageUrl,
     commentCount: task._count.comments,
     subtaskTotal: task.subtasks.length,
     subtaskDone: task.subtasks.filter((s) => s.done).length,

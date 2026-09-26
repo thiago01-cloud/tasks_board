@@ -15,6 +15,12 @@ export default async function TeamPage() {
   // POST/DELETE /api/agents). Anyone else is redirected away.
   if (!agent || (agent.role !== "ADMIN" && agent.role !== "MANAGER")) redirect("/dashboard");
   const isAdmin = agent.role === "ADMIN";
+  // Whether the viewer is the company's OWNER (compared by User.id, not
+  // session role — see lib/auth.ts's SessionRole comment) — the only
+  // account allowed to grant/revoke another agent's right to manage the
+  // subscription (see TeamCard.tsx's toggle and PATCH
+  // /api/agents/[id]/subscription-manager).
+  const isOwner = agent.userId === agent.ownerId;
 
   const [companyMembers, groups] = await Promise.all([
     prisma.agent.findMany({
@@ -67,6 +73,7 @@ export default async function TeamPage() {
               email: member.user.email,
               role: member.role,
               groupNames: member.groups.map((g) => g.name),
+              canManageSubscription: member.canManageSubscription,
             }}
             isMe={member.userId === agent.userId}
             // Whether the viewer (admin or manager) may share this
@@ -75,6 +82,10 @@ export default async function TeamPage() {
             // owner, a manager only on accounts they themselves added.
             canManage={canManageAgent(agent, member, agent.ownerId)}
             canDelete={isAdmin && canManageAgent(agent, member, agent.ownerId)}
+            // Only the owner ever sees this toggle at all — TeamCard.tsx
+            // also hides it on the owner's own (isMe) row, since the
+            // owner always has the right regardless of this flag.
+            canGrantSubscriptionManager={isOwner}
           />
         ))}
       </div>

@@ -13,6 +13,8 @@ export type BoardTask = {
   commentCount: number;
   subtaskTotal: number;
   subtaskDone: number;
+  hasLink: boolean;
+  hasImage: boolean;
   assignees: { id: string; firstName: string; lastName: string }[];
 };
 
@@ -100,6 +102,16 @@ export default function TaskCard({ task }: { task: BoardTask }) {
             >
               <ChecklistIcon />
               {task.subtaskDone}/{task.subtaskTotal}
+            </span>
+          )}
+          {task.hasLink && (
+            <span style={{ fontSize: 12, color: "var(--color-text-muted)" }} title="Contient un lien">
+              🔗
+            </span>
+          )}
+          {task.hasImage && (
+            <span style={{ fontSize: 12, color: "var(--color-text-muted)" }} title="Contient une image">
+              🖼️
             </span>
           )}
           {task.commentCount > 0 && (

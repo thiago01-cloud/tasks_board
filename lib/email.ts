@@ -13,6 +13,7 @@
 // package.json — deliberately not committed here since this environment
 // can't run npm install itself to verify the exact version).
 import { Resend } from "resend";
+import { formatDateTime } from "./dates";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -84,6 +85,64 @@ export async function sendInviteEmail({
     return true;
   } catch (err) {
     console.error("Échec de l'envoi de l'email d'invitation:", err);
+    return false;
+  }
+}
+
+// The other transactional email this app sends: a "temps imparti à moitié/
+// deux tiers écoulé" alert for a task, from the cron job in
+// app/api/cron/task-alerts/route.ts. Same wrapper/fallback pattern as
+// sendInviteEmail above — if Resend isn't configured, sending is skipped
+// (the in-app notification, created separately by the caller, still goes
+// through either way).
+export async function sendTaskAlertEmail({
+  to,
+  firstName,
+  taskTitle,
+  taskUrl,
+  thresholdLabel,
+  dueDateIso,
+}: {
+  to: string;
+  firstName: string;
+  taskTitle: string;
+  taskUrl: string;
+  // "la moitié" | "les deux tiers" — dropped straight into the sentence
+  // below, see the two THRESHOLDS entries in the cron route.
+  thresholdLabel: string;
+  dueDateIso: string;
+}): Promise<boolean> {
+  if (!resend) {
+    console.warn(`RESEND_API_KEY absent — alerte de délai non envoyée à ${to} pour "${taskTitle}".`);
+    return false;
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `⏱ ${taskTitle} — ${thresholdLabel} du délai est écoulée`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a2e;">
+          <p>Bonjour ${firstName},</p>
+          <p><strong>${thresholdLabel}</strong> du temps imparti pour la tâche <strong>${taskTitle}</strong> est déjà écoulée.</p>
+          <p style="font-size: 13px; color: #666;">Échéance : ${formatDateTime(dueDateIso)}</p>
+          <p style="margin: 24px 0;">
+            <a href="${taskUrl}" style="background: #2a3365; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+              Voir la tâche
+            </a>
+          </p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error("Resend a refusé l'envoi (alerte de délai):", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Échec de l'envoi de l'alerte de délai:", err);
     return false;
   }
 }

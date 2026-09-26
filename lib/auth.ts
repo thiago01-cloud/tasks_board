@@ -255,6 +255,48 @@ export async function requireAdminOrManager() {
   return { agent };
 }
 
+// Whether the signed-in agent may manage the company's subscription
+// (choose/change/cancel the plan, toggle add-ons — see
+// app/dashboard/subscription) — always true for the company's OWNER
+// (compared by User.id, not by session role: see the comment on
+// SessionRole above — Agent.role itself never stores "OWNER"), and
+// otherwise only for an agent the owner has explicitly delegated the
+// right to (Agent.canManageSubscription — see PATCH
+// /api/agents/[id]/subscription-manager). Re-checked against the
+// database rather than the session cookie so a right the owner just
+// granted or revoked takes effect immediately, not just after the
+// affected agent's next login.
+export async function canManageSubscription(agent: {
+  id: string | null;
+  userId: string;
+  ownerId: string;
+}): Promise<boolean> {
+  if (agent.userId === agent.ownerId) return true;
+  if (!agent.id) return false;
+  const row = await prisma.agent.findUnique({
+    where: { id: agent.id },
+    select: { canManageSubscription: true },
+  });
+  return !!row?.canManageSubscription;
+}
+
+// Route Handler guard mirroring requireAdmin()/requireAdminOrManager()
+// above, for the subscription-management routes.
+export async function requireSubscriptionManager() {
+  const { agent, error } = await requireAgent();
+  if (error) return { error };
+  const allowed = await canManageSubscription(agent!);
+  if (!allowed) {
+    return {
+      error: NextResponse.json(
+        { error: "Réservé au propriétaire de l'entreprise, ou à un agent qu'il a autorisé à gérer l'abonnement." },
+        { status: 403 }
+      ),
+    };
+  }
+  return { agent };
+}
+
 // Whether `agent` may validate (mark DONE) or reject a task currently
 // awaiting validation — see TASK_STATUS_LABELS.TO_VALIDATE in
 // lib/enums.ts. Strictly the task's own creator; an admin only stands in

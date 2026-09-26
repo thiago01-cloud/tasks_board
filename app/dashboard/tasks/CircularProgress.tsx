@@ -20,18 +20,24 @@ export default function CircularProgress({
   size = 20,
   strokeWidth = 3,
   showLabel = false,
+  invertColor = false,
 }: {
   value: number;
   size?: number;
   strokeWidth?: number;
   showLabel?: boolean;
+  // For a rate where LOWER is better (e.g. "Taux de retard" on the
+  // dashboard) — the ring still fills to the real `value` and the label
+  // still shows the real percentage, only the color band flips, so a high
+  // rate reads as a warning instead of misleadingly as success.
+  invertColor?: boolean;
 }) {
   const clamped = Math.min(100, Math.max(0, Math.round(value)));
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
   const center = size / 2;
-  const color = progressColor(clamped);
+  const color = progressColor(invertColor ? 100 - clamped : clamped);
 
   return (
     <span

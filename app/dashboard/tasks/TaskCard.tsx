@@ -45,7 +45,16 @@ export default function TaskCard({ task }: { task: BoardTask }) {
   const extraCount = task.assignees.length - shownAssignees.length;
 
   return (
-    <Link href={`/dashboard/tasks/${task.id}`} className="task-card">
+    <Link
+      href={`/dashboard/tasks/${task.id}`}
+      className="task-card"
+      // Bare presence-based attributes (not "true"/"false") so the CSS
+      // selector below only has to check for existence — see .task-card
+      // in globals.css for the very-light red/green background this
+      // drives (overdue vs. done).
+      data-overdue={overdue ? "" : undefined}
+      data-done={task.status === "DONE" ? "" : undefined}
+    >
       <p className="task-card-title">
         {task.title}
         {task.status === "IN_PROGRESS" && (

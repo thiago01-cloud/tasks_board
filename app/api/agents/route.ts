@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const newAgent = await prisma.agent.create({
-    data: { userId, companyId: agent!.companyId, role },
+    data: { userId, companyId: agent!.companyId, role, createdByAgentId: agent!.id },
     include: AGENT_INCLUDE,
   });
 

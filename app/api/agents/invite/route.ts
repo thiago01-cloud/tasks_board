@@ -81,14 +81,14 @@ export async function POST(request: Request) {
       data: { firstName, lastName, country, phone, email, passwordHash: placeholderHash },
     });
     return tx.agent.create({
-      data: { userId: user.id, companyId: agent!.companyId, role },
+      data: { userId: user.id, companyId: agent!.companyId, role, createdByAgentId: agent!.id },
       include: AGENT_INCLUDE,
     });
   });
 
   const inviteUrl = await buildInviteUrl(newAgent.userId, new URL(request.url).origin);
   const whatsappUrl = `https://wa.me/${toWhatsAppNumber(phone)}?text=${encodeURIComponent(
-    inviteMessage(firstName, agent!.companyName, inviteUrl)
+    inviteMessage(firstName, agent!.companyName, inviteUrl, false)
   )}`;
 
   return NextResponse.json(

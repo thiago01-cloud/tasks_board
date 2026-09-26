@@ -188,6 +188,10 @@ export async function getCurrentAgent() {
     userId: session.user.id,
     companyId: session.company.id,
     companyName: session.company.name,
+    // Who owns this company (User.id) — used by canManageAgent() in
+    // lib/agents.ts to keep the owner's own account off limits to
+    // everyone else, admins included.
+    ownerId: session.company.ownerId,
     firstName: session.user.firstName,
     lastName: session.user.lastName,
     fullName: `${session.user.firstName} ${session.user.lastName}`.trim(),
@@ -228,6 +232,25 @@ export async function requireAdmin() {
   if (error) return { error };
   if (agent!.role !== "ADMIN") {
     return { error: NextResponse.json({ error: "Reserved for administrators." }, { status: 403 }) };
+  }
+  return { agent };
+}
+
+// Admin or manager — for actions either role may take (e.g. sharing an
+// existing teammate's invite link again from their team card, see
+// POST /api/agents/invite/link and POST /api/agents/invite/email), as
+// opposed to requireAdmin() above, which stays reserved for creating or
+// removing accounts.
+export async function requireAdminOrManager() {
+  const { agent, error } = await requireAgent();
+  if (error) return { error };
+  if (agent!.role !== "ADMIN" && agent!.role !== "MANAGER") {
+    return {
+      error: NextResponse.json(
+        { error: "Réservé aux administrateurs et managers." },
+        { status: 403 }
+      ),
+    };
   }
   return { agent };
 }
@@ -286,6 +309,7 @@ export async function requireAgentEnsured() {
       userId: session.user.id,
       companyId: session.company.id,
       companyName: session.company.name,
+      ownerId: session.company.ownerId,
       firstName: session.user.firstName,
       lastName: session.user.lastName,
       fullName: `${session.user.firstName} ${session.user.lastName}`.trim(),

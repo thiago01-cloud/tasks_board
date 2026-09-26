@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PhoneField from "../../components/PhoneField";
 import { toLocalNumberForPhoneField } from "@/lib/phone";
+import Modal from "../Modal";
 
 // Adding a teammate is a two-or-three-step form:
 //   1. Type a phone number or email — POST /api/agents/search looks it up,
@@ -236,90 +237,78 @@ export default function TeamForm() {
 
   return (
     <div>
-      {postCreate && (
-        <div className="card" style={{ marginBottom: 16, borderLeft: "3px solid var(--color-success)" }}>
-          <p style={{ margin: 0 }}>
-            Compte créé pour <strong>{postCreate.firstName}</strong>. Choisissez comment lui envoyer son
-            lien de connexion :
-          </p>
+      <Modal
+        open={!!postCreate}
+        onClose={() => setPostCreate(null)}
+        title={postCreate ? `Compte créé pour ${postCreate.firstName}` : ""}
+      >
+        {postCreate && (
+          <>
+            <p style={{ margin: 0 }}>Choisissez comment lui envoyer son lien de connexion :</p>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button
-              type="button"
-              className="button"
-              onClick={handleSendEmail}
-              disabled={emailSendLoading}
-            >
-              {emailSendLoading ? "Envoi..." : "Envoyer par email"}
-            </button>
-            <a
-              href={postCreate.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button-secondary button"
-              onClick={() => setWhatsappOpened(true)}
-            >
-              Envoyer par WhatsApp
-            </a>
-          </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+              <button
+                type="button"
+                className="button"
+                onClick={handleSendEmail}
+                disabled={emailSendLoading}
+              >
+                {emailSendLoading ? "Envoi..." : "Envoyer par email"}
+              </button>
+              <a
+                href={postCreate.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button-secondary button"
+                onClick={() => setWhatsappOpened(true)}
+              >
+                Envoyer par WhatsApp
+              </a>
+            </div>
 
-          <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-text-muted)" }}>
-            Pour WhatsApp : assurez-vous d&apos;avoir un compte WhatsApp connecté sur l&apos;appareil que
-            vous utilisez actuellement (téléphone, WhatsApp Web ou l&apos;application de bureau) — le
-            message s&apos;ouvrira depuis votre propre WhatsApp, prêt à être envoyé.
-          </p>
-
-          {whatsappOpened && (
-            <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--color-success)" }}>
-              WhatsApp ouvert dans un nouvel onglet — n&apos;oublie pas d&apos;appuyer sur envoyer.
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-text-muted)" }}>
+              Pour WhatsApp : assurez-vous d&apos;avoir un compte WhatsApp connecté sur l&apos;appareil que
+              vous utilisez actuellement (téléphone, WhatsApp Web ou l&apos;application de bureau) — le
+              message s&apos;ouvrira depuis votre propre WhatsApp, prêt à être envoyé.
             </p>
-          )}
 
-          {emailSendResult && (
-            <p
-              style={{
-                margin: "8px 0 0",
-                fontSize: 13,
-                color: emailSendResult.ok ? "var(--color-success)" : "var(--color-danger)",
-              }}
-            >
-              {emailSendResult.message}
+            {whatsappOpened && (
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--color-success)" }}>
+                WhatsApp ouvert dans un nouvel onglet — n&apos;oublie pas d&apos;appuyer sur envoyer.
+              </p>
+            )}
+
+            {emailSendResult && (
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: 13,
+                  color: emailSendResult.ok ? "var(--color-success)" : "var(--color-danger)",
+                }}
+              >
+                {emailSendResult.message}
+              </p>
+            )}
+
+            <p style={{ margin: "10px 0 0", fontSize: 13, wordBreak: "break-all" }}>
+              Lien de connexion : <a href={postCreate.inviteUrl}>{postCreate.inviteUrl}</a>
             </p>
-          )}
+          </>
+        )}
+      </Modal>
 
-          <p style={{ margin: "10px 0 0", fontSize: 13, wordBreak: "break-all" }}>
-            Lien de connexion : <a href={postCreate.inviteUrl}>{postCreate.inviteUrl}</a>
-          </p>
-
-          <button
-            type="button"
-            className="button-secondary button"
-            style={{ marginTop: 10, padding: "6px 12px", fontSize: 13 }}
-            onClick={() => setPostCreate(null)}
-          >
-            Fermer
-          </button>
-        </div>
-      )}
-
-      {notice && (
-        <div className="card" style={{ marginBottom: 16, borderLeft: "3px solid var(--color-success)" }}>
-          <p style={{ margin: 0 }}>{notice.message}</p>
-          {notice.inviteUrl && (
-            <p style={{ margin: "8px 0 0", fontSize: 13, wordBreak: "break-all" }}>
-              <a href={notice.inviteUrl}>{notice.inviteUrl}</a>
-            </p>
-          )}
-          <button
-            type="button"
-            className="button-secondary button"
-            style={{ marginTop: 10, padding: "6px 12px", fontSize: 13 }}
-            onClick={() => setNotice(null)}
-          >
-            Fermer
-          </button>
-        </div>
-      )}
+      <Modal open={!!notice} onClose={() => setNotice(null)} title="Membre ajouté">
+        {notice && (
+          <>
+            <p style={{ margin: 0 }}>{notice.message}</p>
+            {notice.inviteUrl && (
+              <p style={{ margin: "8px 0 0", fontSize: 13, wordBreak: "break-all" }}>
+                <a href={notice.inviteUrl}>{notice.inviteUrl}</a>
+              </p>
+            )}
+          </>
+        )}
+      </Modal>
 
       {step === "search" && (
         <form onSubmit={handleSearch}>

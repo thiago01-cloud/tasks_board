@@ -18,9 +18,17 @@
 
   --color-danger: #b3261e;
   --color-danger-tint: #fbe9e7;
+  /* Barely-there wash for whole-card backgrounds (overdue tasks) — much
+     lighter than --color-danger-tint above, which is a solid pastel used
+     for buttons/badges. Kept deliberately faint: the app stays a mostly
+     neutral surface with color reserved for small accents, not full
+     cards. */
+  --color-danger-wash: rgba(179, 38, 30, 0.05);
 
   --color-success: #1a8a4c;
   --color-success-tint: #e3f4ea;
+  /* Same reasoning as --color-danger-wash above, for finished tasks. */
+  --color-success-wash: rgba(26, 138, 76, 0.05);
 
   --radius: 10px;
   --radius-lg: 16px;
@@ -500,31 +508,49 @@ input, select, textarea, button {
   margin-bottom: 16px;
 }
 
-.task-filter-tabs {
-  display: inline-flex;
-  gap: 4px;
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 3px;
+/* Filter row (TaskFilters.tsx): three plain selects (assigné, priorité,
+   groupe) plus a reset button once any of them is set — kept as neutral
+   form controls rather than colored pills, consistent with the rest of
+   the toolbar. */
+.task-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.task-filter-tab {
-  padding: 6px 14px;
-  border: none;
+.task-filter-select {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13.5px;
+}
+
+.task-filter-reset {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   background: none;
-  border-radius: calc(var(--radius) - 3px);
+  color: var(--color-text-muted);
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--color-text-muted);
-  text-decoration: none;
   cursor: pointer;
 }
 
-.task-filter-tab.active {
-  background: var(--color-surface);
-  color: var(--color-primary);
-  box-shadow: var(--card-shadow);
+.task-filter-reset:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+/* The "showing X by default" hint (TaskBoard.tsx) — only appears when no
+   filter was picked at all, see page.tsx's own cascade. */
+.task-default-notice {
+  margin: -6px 0 14px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 /* Horizontal scroll wrapper: on mobile the board switches to one
@@ -595,6 +621,27 @@ input, select, textarea, button {
   border-color: var(--color-primary);
 }
 
+/* Overdue: red outline + a wash of red so faint it reads as "slightly off
+   white", not a colored card — see --color-danger-wash's own comment.
+   Kept red on hover too, otherwise the one visual cue for "this is late"
+   would vanish exactly when the pointer is on it. A task can't be both
+   overdue and done at once (see TaskCard.tsx's own `overdue` check), so
+   this never competes with the rule below. */
+.task-card[data-overdue] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-wash);
+}
+
+.task-card[data-overdue]:hover {
+  border-color: var(--color-danger);
+}
+
+/* Done: same idea, a wash of green — no border change, just enough to
+   tell a finished card apart from the rest of the column at a glance. */
+.task-card[data-done] {
+  background: var(--color-success-wash);
+}
+
 .task-card-title {
   display: flex;
   align-items: center;
@@ -661,6 +708,28 @@ input, select, textarea, button {
   color: var(--color-primary);
   line-height: 1;
   white-space: nowrap;
+}
+
+/* Indeterminate loading ring next to the "Tâches" title while a filter
+   change is being applied — see TaskNavigation.tsx. Single-color (the
+   app's own primary indigo over a neutral track), not a status color, so
+   it just reads as "working" rather than adding another color to the
+   page. */
+@keyframes task-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-loading-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: task-spinner-rotate 0.7s linear infinite;
 }
 
 .progress-editor {
@@ -823,6 +892,7 @@ input, select, textarea, button {
 .team-card-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ---------- Comments ---------- */
@@ -1618,4 +1688,64 @@ input, select, textarea, button {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* ---------- Generic modal (Modal.tsx) ----------
+   Wider than the confirm dialog above and with its own title bar/close
+   button — holds richer content (action buttons, links, help text)
+   instead of a single yes/no question. Used for "share this teammate's
+   login link" (TeamCard.tsx) and the post-creation invite panel
+   (TeamForm.tsx). */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 16, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.modal-close:hover {
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: 18px 20px 20px;
 }

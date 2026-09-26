@@ -140,6 +140,20 @@ model Agent {
   groups    Group[]
   joinedAt  DateTime @default(now())
 
+  // Which admin/manager's own action brought this account into the
+  // company — via POST /api/agents (linking an existing account) or
+  // POST /api/agents/invite (creating a brand new one). Used to restrict a
+  // MANAGER's reach: they may only manage (share the login link for,
+  // remove) accounts they themselves added — see canManageAgent() in
+  // lib/agents.ts. Same nullable/SetNull pattern as Group.creatorId: null
+  // for every agent that predates this column (or the company's very
+  // first agent, created directly by POST /api/companies, not through
+  // either of those routes), and it just falls back to admin-only from
+  // then on if the creator later leaves the company.
+  createdByAgentId String?
+  createdBy        Agent?   @relation("AgentCreator", fields: [createdByAgentId], references: [id], onDelete: SetNull)
+  createdAgents     Agent[]  @relation("AgentCreator")
+
   createdTasks  Task[]         @relation("TaskCreator")
   createdGroups Group[]        @relation("GroupCreator")
   assignments   Assignment[]

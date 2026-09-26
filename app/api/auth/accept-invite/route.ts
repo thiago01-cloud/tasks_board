@@ -3,14 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { createSession, createPreSession, getAccessibleCompanies } from "@/lib/auth";
 import { verifyToken } from "@/lib/token";
 
-// The link an invited teammate clicks from their email (see
-// POST /api/agents/invite, which generates the token, and lib/email.ts,
-// which sends it). A GET, not a POST — it's meant to be opened directly by
-// following the link, no form involved. Logs the account in immediately
-// (same "how many companies can this account reach" branching as
-// POST /api/auth/login) and sends it straight to app/set-password, which
-// is the one thing standing between it and the rest of the dashboard — see
-// needsPasswordSetup() in lib/auth.ts.
+// The link a teammate clicks from their email or WhatsApp message (see
+// POST /api/agents/invite, which mints the token for a brand new account,
+// and POST /api/agents/invite/link + POST /api/agents/invite/email, which
+// mint it again later for any teammate on demand — see lib/invite.ts). A
+// GET, not a POST — it's meant to be opened directly by following the
+// link, no form involved. Logs the account in immediately (same "how many
+// companies can this account reach" branching as POST /api/auth/login) and
+// always lands on /dashboard: dashboard/layout.tsx's own
+// needsPasswordSetup() check is what actually sends a still-onboarding
+// account on to app/set-password first, so this route doesn't need to
+// duplicate that decision — and it means the very same link keeps working,
+// as a standing magic-login shortcut, for an account that finished
+// onboarding long ago too (deliberately no "already used" rejection here:
+// see canManageAgent()/TeamCard.tsx for who gets to hand this link out
+// again).
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const token = searchParams.get("token") || "";
@@ -29,14 +36,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=invite_invalid", origin));
   }
 
-  // Already completed setup — this exact link was used before (or the
-  // account since logged in and changed its password some other way).
-  // Re-using a stale link to log back in without a password would defeat
-  // the point of having one, so send it to the normal login form instead.
-  if (user.passwordSetAt) {
-    return NextResponse.redirect(new URL("/login?notice=invite_used", origin));
-  }
-
   const companies = await getAccessibleCompanies(user.id);
 
   if (companies.length === 0) {
@@ -49,7 +48,7 @@ export async function GET(request: Request) {
   if (companies.length === 1) {
     const { company, role, agentId } = companies[0];
     await createSession(user, { companyId: company.id, role, agentId });
-    return NextResponse.redirect(new URL("/set-password", origin));
+    return NextResponse.redirect(new URL("/dashboard", origin));
   }
 
   // Invited to more than one company before ever setting a password

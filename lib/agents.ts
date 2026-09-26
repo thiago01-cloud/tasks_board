@@ -26,3 +26,22 @@ export function flattenAgent(a: {
     email: a.user.email,
   };
 }
+
+// Whether `actor` (the signed-in admin/manager) may manage `target` —
+// share its login link again (see POST /api/agents/invite/link,
+// POST /api/agents/invite/email) or remove it (DELETE /api/agents/[id]).
+// Same tier as groups (see canManageGroup() in
+// app/api/groups/[id]/route.ts), plus one more exception specific to
+// accounts: the company owner's own Agent record is off limits to
+// everyone else, admins included — there's no route for the owner to be
+// managed this way by someone else, only by themselves (and they'd never
+// see the option on their own card anyway, see TeamCard.tsx's own `isMe`
+// check).
+export function canManageAgent(
+  actor: { role: string; id: string | null },
+  target: { userId: string; createdByAgentId: string | null },
+  ownerId: string
+): boolean {
+  if (target.userId === ownerId) return false;
+  return actor.role === "ADMIN" || (actor.role === "MANAGER" && target.createdByAgentId === actor.id);
+}

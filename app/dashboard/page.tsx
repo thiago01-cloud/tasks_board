@@ -14,6 +14,29 @@ import {
 import CircularProgress, { progressColor } from "./tasks/CircularProgress";
 import StatusIcon from "./StatusIcon";
 
+// Same inline-SVG, single-stroke convention as StatusIcon — for the two
+// stat cards that aren't a task status (see the first stat grid below).
+function OverdueIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3.5 21.5 19.5H2.5z" />
+      <path d="M12 9.5v4" />
+      <path d="M12 16.2v.01" />
+    </svg>
+  );
+}
+
+function NewThisWeekIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="15" rx="2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M8 3v4M16 3v4" />
+      <path d="M12 13v5M9.5 15.5h5" />
+    </svg>
+  );
+}
+
 export default async function DashboardPage() {
   const agent = await getCurrentAgent();
   // Rare case: the session cookie is still a valid token, but the agent,
@@ -25,7 +48,7 @@ export default async function DashboardPage() {
   const companyId = agent.companyId;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [statusCounts, priorityCounts, myOpenCount, overdueCount, createdThisWeek, avgProgress, members, groupCount, tasksWithGroups] =
+  const [statusCounts, priorityCounts, myOpenCount, overdueCount, createdThisWeek, avgProgress, doneWithDeadline, members, groupCount, tasksWithGroups] =
     await Promise.all([
       prisma.task.groupBy({ by: ["status"], where: { companyId }, _count: { _all: true } }),
       prisma.task.groupBy({ by: ["priority"], where: { companyId }, _count: { _all: true } }),
@@ -41,6 +64,14 @@ export default async function DashboardPage() {
       }),
       prisma.task.count({ where: { companyId, createdAt: { gte: sevenDaysAgo } } }),
       prisma.task.aggregate({ where: { companyId, status: "IN_PROGRESS" }, _avg: { progress: true } }),
+      // For "Taux d'efficience" below: only DONE tasks that actually had a
+      // deadline can be judged on-time or late — same "completedAt vs
+      // dueDate" comparison TaskDetail.tsx already shows per task (see its
+      // own "Performance" field), just aggregated here across the company.
+      prisma.task.findMany({
+        where: { companyId, status: "DONE", dueDate: { not: null }, completedAt: { not: null } },
+        select: { dueDate: true, completedAt: true },
+      }),
       // One row per team member, carrying every assignment's task id +
       // status — enough to derive the open-task count and completion rate
       // below, per member.
@@ -74,6 +105,22 @@ export default async function DashboardPage() {
   const completionRate = total > 0 ? Math.round(((countByStatus.DONE || 0) / total) * 100) : 0;
   const inProgressCount = countByStatus.IN_PROGRESS || 0;
   const avgInProgress = avgProgress._avg.progress != null ? Math.round(avgProgress._avg.progress) : 0;
+
+  // Taux de retard: share of currently OPEN tasks (not yet DONE) that are
+  // already overdue — a leading indicator, unlike completionRate above.
+  const openCount = total - (countByStatus.DONE || 0);
+  const overdueRate = openCount > 0 ? Math.round((overdueCount / openCount) * 100) : 0;
+
+  // Taux d'efficience: of the DONE tasks that had a deadline, the share
+  // finished on time or early (completedAt <= dueDate) — the same
+  // per-task "À l'heure / En retard / En avance" comparison TaskDetail.tsx
+  // shows, aggregated. null (not 0) when there's no such task yet, so the
+  // card can show "—" instead of a misleading 0%.
+  const onTimeCount = doneWithDeadline.filter(
+    (t) => new Date(t.completedAt!).getTime() <= new Date(t.dueDate!).getTime()
+  ).length;
+  const efficiencyRate =
+    doneWithDeadline.length > 0 ? Math.round((onTimeCount / doneWithDeadline.length) * 100) : null;
 
   // Per-member: open-task count (for the workload bar) + completion rate
   // (done / total assigned) for the new "avancement par membre" list.
@@ -131,7 +178,7 @@ export default async function DashboardPage() {
 
       <div className="field-grid field-grid-4" style={{ marginBottom: 20 }}>
         {TASK_STATUSES.map((status) => (
-          <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }} key={status}>
+          <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }} key={status}>
             <div
               style={{
                 width: 44,
@@ -147,20 +194,81 @@ export default async function DashboardPage() {
             >
               <StatusIcon status={status} />
             </div>
-            <div>
+            <div style={{ textAlign: "right" }}>
               <p style={statTitleStyle}>{TASK_STATUS_LABELS[status]}</p>
               <p style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{countByStatus[status] || 0}</p>
             </div>
           </div>
         ))}
+
+        <div
+          className="card"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderColor: overdueCount > 0 ? "var(--color-danger)" : undefined,
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              color: "var(--color-danger)",
+              background: "color-mix(in srgb, var(--color-danger) 14%, transparent)",
+            }}
+          >
+            <OverdueIcon />
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={statTitleStyle}>En retard</p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 28,
+                fontWeight: 700,
+                color: overdueCount > 0 ? "var(--color-danger)" : undefined,
+              }}
+            >
+              {overdueCount}
+            </p>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              color: "var(--color-primary)",
+              background: "color-mix(in srgb, var(--color-primary) 14%, transparent)",
+            }}
+          >
+            <NewThisWeekIcon />
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={statTitleStyle}>Créées cette semaine</p>
+            <p style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{createdThisWeek}</p>
+          </div>
+        </div>
       </div>
 
       {total > 0 && (
         <>
           <div className="field-grid field-grid-4" style={{ marginBottom: 20 }}>
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <CircularProgress value={completionRate} size={54} strokeWidth={5} showLabel />
-              <div>
+              <div style={{ textAlign: "right" }}>
                 <p style={statTitleStyle}>Taux de complétion</p>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
                   {countByStatus.DONE || 0} / {total} tâches
@@ -168,7 +276,7 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               {inProgressCount > 0 ? (
                 <CircularProgress value={avgInProgress} size={54} strokeWidth={5} showLabel />
               ) : (
@@ -182,7 +290,7 @@ export default async function DashboardPage() {
                   }}
                 />
               )}
-              <div>
+              <div style={{ textAlign: "right" }}>
                 <p style={statTitleStyle}>Avancement moyen</p>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
                   {inProgressCount > 0
@@ -192,23 +300,38 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="card" style={overdueCount > 0 ? { borderColor: "var(--color-danger)" } : undefined}>
-              <p style={statTitleStyle}>En retard</p>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: overdueCount > 0 ? "var(--color-danger)" : undefined,
-                }}
-              >
-                {overdueCount}
-              </p>
+            <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <CircularProgress value={overdueRate} size={54} strokeWidth={5} showLabel invertColor />
+              <div style={{ textAlign: "right" }}>
+                <p style={statTitleStyle}>Taux de retard</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                  {overdueCount} / {openCount} tâche{openCount > 1 ? "s" : ""} ouverte{openCount > 1 ? "s" : ""}
+                </p>
+              </div>
             </div>
 
-            <div className="card">
-              <p style={statTitleStyle}>Créées cette semaine</p>
-              <p style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{createdThisWeek}</p>
+            <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              {efficiencyRate != null ? (
+                <CircularProgress value={efficiencyRate} size={54} strokeWidth={5} showLabel />
+              ) : (
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: "50%",
+                    border: "3px solid var(--color-border)",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <div style={{ textAlign: "right" }}>
+                <p style={statTitleStyle}>Taux d&apos;efficience</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                  {efficiencyRate != null
+                    ? `${onTimeCount} / ${doneWithDeadline.length} tâche${doneWithDeadline.length > 1 ? "s" : ""} à l'heure`
+                    : "Aucune tâche terminée avec échéance"}
+                </p>
+              </div>
             </div>
           </div>
 

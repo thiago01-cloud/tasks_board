@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canManageAgent } from "@/lib/agents";
 import TeamForm from "./TeamForm";
 import TeamCard from "./TeamCard";
 import GroupManager from "./GroupManager";
@@ -20,7 +21,16 @@ export default async function TeamPage() {
       where: { companyId: agent.companyId },
       orderBy: { joinedAt: "asc" },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            passwordSetAt: true,
+          },
+        },
         groups: { select: { id: true, name: true } },
       },
     }),
@@ -50,6 +60,7 @@ export default async function TeamPage() {
             key={member.id}
             agent={{
               id: member.id,
+              userId: member.userId,
               firstName: member.user.firstName,
               lastName: member.user.lastName,
               phone: member.user.phone,
@@ -58,7 +69,12 @@ export default async function TeamPage() {
               groupNames: member.groups.map((g) => g.name),
             }}
             isMe={member.userId === agent.userId}
-            canDelete={isAdmin}
+            // Whether the viewer (admin or manager) may share this
+            // teammate's login link — see canManageAgent() in
+            // lib/agents.ts: an admin may act on anyone but the company's
+            // owner, a manager only on accounts they themselves added.
+            canManage={canManageAgent(agent, member, agent.ownerId)}
+            canDelete={isAdmin && canManageAgent(agent, member, agent.ownerId)}
           />
         ))}
       </div>

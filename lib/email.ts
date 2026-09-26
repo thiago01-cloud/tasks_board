@@ -1,6 +1,7 @@
 // Thin wrapper around Resend (https://resend.com) for the one transactional
-// email this app sends: a teammate's invite link (see
-// POST /api/agents/invite and app/api/auth/accept-invite/route.ts).
+// email this app sends: a teammate's magic login link (see
+// POST /api/agents/invite, POST /api/agents/invite/email, and
+// app/api/auth/accept-invite/route.ts).
 //
 // Needs `RESEND_API_KEY` (Resend dashboard → API Keys) in the environment
 // — see .env.example. Without it, sending is skipped and the invite link
@@ -26,32 +27,46 @@ export async function sendInviteEmail({
   firstName,
   companyName,
   inviteUrl,
+  alreadyActive,
 }: {
   to: string;
   firstName: string;
   companyName: string;
   inviteUrl: string;
+  // See lib/invite.ts's inviteMessage() — same reasoning: this account may
+  // already have a password, so the email shouldn't tell it to "choose"
+  // one again.
+  alreadyActive: boolean;
 }): Promise<boolean> {
   if (!resend) {
     console.warn(
-      `RESEND_API_KEY absent — email d'invitation non envoyé à ${to}. Lien à partager manuellement : ${inviteUrl}`
+      `RESEND_API_KEY absent — email de connexion non envoyé à ${to}. Lien à partager manuellement : ${inviteUrl}`
     );
     return false;
   }
+
+  const subject = alreadyActive
+    ? `Votre lien de connexion à TASKS (${companyName})`
+    : `${companyName} vous invite à rejoindre TASKS`;
+
+  const intro = alreadyActive
+    ? `<p>Voici votre lien de connexion à l&apos;espace TASKS de <strong>${companyName}</strong> :</p>`
+    : `<p><strong>${companyName}</strong> vous a ajouté(e) comme membre de son espace TASKS.</p>
+       <p>Cliquez sur le lien ci-dessous pour accéder à la plateforme et choisir votre mot de passe :</p>`;
+  const buttonLabel = alreadyActive ? "Se connecter" : "Rejoindre TASKS";
 
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject: `${companyName} vous invite à rejoindre TASKS`,
+      subject,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a2e;">
           <p>Bonjour ${firstName},</p>
-          <p><strong>${companyName}</strong> vous a ajouté(e) comme membre de son espace TASKS.</p>
-          <p>Cliquez sur le lien ci-dessous pour accéder à la plateforme et choisir votre mot de passe :</p>
+          ${intro}
           <p style="margin: 24px 0;">
             <a href="${inviteUrl}" style="background: #2a3365; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-              Rejoindre TASKS
+              ${buttonLabel}
             </a>
           </p>
           <p style="font-size: 13px; color: #666;">

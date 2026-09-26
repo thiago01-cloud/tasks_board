@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminOrManager } from "@/lib/auth";
 import { buildInviteUrl } from "@/lib/invite";
 import { sendInviteEmail } from "@/lib/email";
+import { canManageAgent } from "@/lib/agents";
 
-// The "Envoyer par email" button shown after POST /api/agents/invite
-// creates an account (see TeamForm.tsx) — deliberately a separate call
-// rather than sending automatically at creation time, since the admin
-// might prefer WhatsApp instead (the other button, a wa.me link that needs
-// no server round-trip — see that route's own comment). Also doubles as a
-// "resend" if the first email never arrived: nothing here assumes this is
-// the first attempt, it just mints a fresh link and sends it.
+// The "Envoyer par email" button shown right after POST /api/agents/invite
+// creates an account (see TeamForm.tsx), and again on that teammate's team
+// card at any time, not just while they still haven't set a password (see
+// TeamCard.tsx and POST /api/agents/invite/link, its WhatsApp-only
+// sibling) — deliberately a separate call rather than sending
+// automatically at creation time, since the admin/manager might prefer
+// WhatsApp instead. Also doubles as a "resend" if the first email never
+// arrived, or a standing "help them back in" shortcut for an account that
+// set its password long ago: nothing here assumes this is the first
+// attempt, it just mints a fresh link and sends it.
+//
+// Restricted by canManageAgent() (lib/agents.ts): an admin may act on
+// anyone but the company's owner, a manager only on accounts they
+// themselves added (see Agent.createdByAgentId).
 export async function POST(request: Request) {
-  const { agent, error } = await requireAdmin();
+  const { agent, error } = await requireAdminOrManager();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -21,9 +29,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "userId requis." }, { status: 400 });
   }
 
-  // Scoped to this admin's own company — an agent record here, not just a
-  // User lookup, so one admin can't use this to email an arbitrary account
-  // elsewhere on the platform.
+  // Scoped to this admin/manager's own company — an agent record here,
+  // not just a User lookup, so nobody can use this to email an arbitrary
+  // account elsewhere on the platform.
   const targetAgent = await prisma.agent.findFirst({
     where: { userId, companyId: agent!.companyId },
     include: { user: { select: { id: true, firstName: true, email: true, passwordSetAt: true } } },
@@ -31,14 +39,14 @@ export async function POST(request: Request) {
   if (!targetAgent) {
     return NextResponse.json({ error: "Compte introuvable dans cette entreprise." }, { status: 404 });
   }
+  if (!canManageAgent(agent!, targetAgent, agent!.ownerId)) {
+    return NextResponse.json(
+      { error: "Vous ne pouvez pas gérer ce compte." },
+      { status: 403 }
+    );
+  }
   if (!targetAgent.user.email) {
     return NextResponse.json({ error: "Ce compte n'a pas d'adresse email." }, { status: 400 });
-  }
-  if (targetAgent.user.passwordSetAt) {
-    return NextResponse.json(
-      { error: "Ce compte a déjà choisi son mot de passe — l'invitation n'est plus utile." },
-      { status: 400 }
-    );
   }
 
   const inviteUrl = await buildInviteUrl(userId, new URL(request.url).origin);
@@ -47,6 +55,7 @@ export async function POST(request: Request) {
     firstName: targetAgent.user.firstName,
     companyName: agent!.companyName,
     inviteUrl,
+    alreadyActive: !!targetAgent.user.passwordSetAt,
   });
 
   return NextResponse.json({

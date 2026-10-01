@@ -12,6 +12,10 @@ const LINKS: NavLink[] = [
 
 const TEAM_LINK: NavLink = { href: "/dashboard/team", label: "Équipe" };
 const SUBSCRIPTION_LINK: NavLink = { href: "/dashboard/subscription", label: "Abonnement" };
+// Unlike every other link here, open to every signed-in account — owner,
+// admin, manager, member alike (see app/dashboard/account/page.tsx) — so
+// it's never behind a prop, just always appended last.
+const ACCOUNT_LINK: NavLink = { href: "/dashboard/account", label: "Mon compte" };
 
 export default function NavLinks({
   showTeamLink,
@@ -30,6 +34,7 @@ export default function NavLinks({
   const pathname = usePathname();
   let links = showTeamLink ? [...LINKS, TEAM_LINK] : LINKS;
   if (showSubscriptionLink) links = [...links, SUBSCRIPTION_LINK];
+  links = [...links, ACCOUNT_LINK];
 
   return (
     <nav className="dashboard-nav">

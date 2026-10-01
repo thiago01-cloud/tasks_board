@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canManageAgent } from "@/lib/agents";
+import { canManageAgent, canManageAccount } from "@/lib/agents";
 import TeamForm from "./TeamForm";
 import TeamCard from "./TeamCard";
 import GroupManager from "./GroupManager";
@@ -32,6 +32,7 @@ export default async function TeamPage() {
             id: true,
             firstName: true,
             lastName: true,
+            country: true,
             phone: true,
             email: true,
             passwordSetAt: true,
@@ -69,6 +70,7 @@ export default async function TeamPage() {
               userId: member.userId,
               firstName: member.user.firstName,
               lastName: member.user.lastName,
+              country: member.user.country,
               phone: member.user.phone,
               email: member.user.email,
               role: member.role,
@@ -86,6 +88,12 @@ export default async function TeamPage() {
             // also hides it on the owner's own (isMe) row, since the
             // owner always has the right regardless of this flag.
             canGrantSubscriptionManager={isOwner}
+            // Whether the viewer may edit this teammate's account details
+            // (name/phone/email/role) or reset their password — see
+            // canManageAccount() in lib/agents.ts: the owner may act on
+            // anyone, an admin on anyone but the owner (other admins
+            // included), a manager on nobody this way.
+            canManageAccount={canManageAccount(agent, member)}
           />
         ))}
       </div>

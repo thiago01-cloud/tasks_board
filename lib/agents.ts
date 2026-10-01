@@ -45,3 +45,26 @@ export function canManageAgent(
   if (target.userId === ownerId) return false;
   return actor.role === "ADMIN" || (actor.role === "MANAGER" && target.createdByAgentId === actor.id);
 }
+
+// Whether `actor` may edit `target`'s account details (name, country,
+// phone, email, role) or trigger a password reset for them — see PATCH
+// /api/agents/[id]/account and POST /api/agents/[id]/reset-password.
+// Broader than canManageAgent() above (which only governs sharing the
+// login link again and removing the account): here, the company's OWNER
+// (compared by User.id, never by session role — Agent.role itself never
+// stores "OWNER", see SessionRole's own comment in lib/auth.ts) may act on
+// ANYONE, admins included, while an ADMIN may act on anyone but the owner
+// — including other admins. A MANAGER/MEMBER can't manage anyone else's
+// account this way at all. And nobody, owner included, manages their OWN
+// account through this path — that's always PATCH /api/account /
+// PATCH /api/account/password instead (see "Mon compte"), which is also
+// the only place role is simply never offered as a field to change.
+export function canManageAccount(
+  actor: { userId: string; ownerId: string; role: string },
+  target: { userId: string }
+): boolean {
+  if (target.userId === actor.userId) return false;
+  const actorIsOwner = actor.userId === actor.ownerId;
+  if (target.userId === actor.ownerId) return actorIsOwner;
+  return actorIsOwner || actor.role === "ADMIN";
+}

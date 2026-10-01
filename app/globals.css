@@ -272,16 +272,15 @@ input, select, textarea, button {
   /* Pinned to the viewport instead of scrolling away with .main-content —
      .dashboard-layout is a plain flex row with no fixed height, so without
      this the sidebar was just another flex item and scrolled off along
-     with the page on anything taller than one screen. overflow-y covers
-     the (currently unlikely, but not impossible — more nav links, a long
-     company name wrapping) case where the sidebar's own content grows
-     past 100vh: it scrolls internally instead of pushing the bottom
-     (logout button, etc.) off-screen. Overridden below (≤880px) with its
-     own position: fixed for the slide-in mobile menu. */
+     with the page on anything taller than one screen. Overridden below
+     (≤880px) with its own position: fixed for the slide-in mobile menu.
+     No overflow-y here (see .dashboard-nav below for why) — it stays the
+     default `visible` so the notification dropdown (position: absolute,
+     up to 340px wide, rendered inside .sidebar-logo below) isn't clipped
+     to the sidebar's own 232px width. */
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
 }
 
 .sidebar-logo {
@@ -293,6 +292,13 @@ input, select, textarea, button {
   flex-direction: column;
   gap: 2px;
   flex: 1;
+  /* Scrolls internally instead of the whole .sidebar (which would clip
+     the notification dropdown above — see its comment) if the nav list
+     ever grows past the viewport's remaining height; min-height: 0 lets
+     a flex child actually shrink enough to scroll instead of overflowing
+     its flex container. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .nav-link {

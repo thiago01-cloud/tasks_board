@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured, canValidateTask } from "@/lib/auth";
 import { TASK_STATUSES, TASK_PRIORITIES } from "@/lib/enums";
+import { validProjectId } from "@/lib/projects";
+import { parseRecurrenceInput } from "@/lib/recurrence";
 import { normalizeOptionalUrl } from "@/lib/urls";
 import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
@@ -159,7 +161,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       body.linkUrl !== undefined ||
       body.imageUrl !== undefined ||
       body.assigneeIds !== undefined ||
-      body.groupIds !== undefined;
+      body.groupIds !== undefined ||
+      body.projectId !== undefined ||
+      body.isRecurring !== undefined;
 
     if (wantsManagedEdit && !canManage) {
       return NextResponse.json(
@@ -213,6 +217,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         }
         data.imageUrl = result.url;
       }
+      if (body.projectId !== undefined) {
+        data.projectId = await validProjectId(agent!.companyId, body.projectId);
+      }
+      // "Tâches répétitives" — see POST /api/tasks's own comment on why
+      // `dueDate` is required the moment isRecurring is (or stays) true;
+      // here the effective due date can come from THIS request or, if it
+      // didn't touch dueDate, from the task as it already stood.
+      if (body.isRecurring !== undefined) {
+        const recurrenceResult = parseRecurrenceInput(body);
+        if (!recurrenceResult.ok) {
+          return NextResponse.json({ error: recurrenceResult.error }, { status: 400 });
+        }
+        if (recurrenceResult.data.isRecurring) {
+          const effectiveDueDate = body.dueDate !== undefined ? data.dueDate : task.dueDate;
+          if (!effectiveDueDate) {
+            return NextResponse.json(
+              {
+                error:
+                  "Une échéance est requise pour une tâche récurrente (c'est elle qui fixe la prochaine occurrence).",
+              },
+              { status: 400 }
+            );
+          }
+        }
+        Object.assign(data, recurrenceResult.data);
+      }
     }
 
     if (Object.keys(data).length === 0 && body.assigneeIds === undefined && body.groupIds === undefined) {
@@ -233,7 +263,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       (data.dueDate !== undefined &&
         (data.dueDate ? data.dueDate.getTime() : null) !== (task.dueDate ? task.dueDate.getTime() : null)) ||
       (data.linkUrl !== undefined && data.linkUrl !== task.linkUrl) ||
-      (data.imageUrl !== undefined && data.imageUrl !== task.imageUrl);
+      (data.imageUrl !== undefined && data.imageUrl !== task.imageUrl) ||
+      (data.projectId !== undefined && data.projectId !== task.projectId) ||
+      (data.isRecurring !== undefined && data.isRecurring !== task.isRecurring);
 
     const pushJobs = await prisma.$transaction(async (tx) => {
       if (Object.keys(data).length > 0) {

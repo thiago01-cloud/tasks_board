@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   TASK_STATUSES,
@@ -8,6 +9,8 @@ import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
+  RECURRENCE_TYPE_LABELS,
+  WEEKDAY_LABELS,
 } from "@/lib/enums";
 import {
   toDatetimeLocalValue,
@@ -27,6 +30,13 @@ import AssigneePicker, {
 } from "../AssigneePicker";
 import SubtaskList, { type SubtaskItem } from "./SubtaskList";
 import { useConfirm } from "../../ConfirmProvider";
+import RecurrenceFields, {
+  type RecurrenceState,
+  recurrenceStateFromTask,
+  recurrencePayload,
+} from "../RecurrenceFields";
+
+export type ProjectOption = { id: string; name: string };
 
 type CommentItem = {
   id: string;
@@ -47,6 +57,13 @@ type TaskData = {
   imageUrl: string | null;
   createdAt: string;
   completedAt: string | null;
+  projectId: string | null;
+  project: { id: string; name: string } | null;
+  isRecurring: boolean;
+  recurrenceType: string | null;
+  recurrenceDayOfMonth: number | null;
+  recurrenceDayOfWeek: number | null;
+  recurrenceIntervalDays: number | null;
   creator: { id: string; firstName: string; lastName: string };
   assigneeIds: string[];
   comments: CommentItem[];
@@ -57,6 +74,7 @@ export default function TaskDetail({
   task,
   members,
   groups,
+  projects,
   canManage,
   canChangeStatus,
   canValidate,
@@ -65,6 +83,7 @@ export default function TaskDetail({
   task: TaskData;
   members: MemberOption[];
   groups: GroupOption[];
+  projects: ProjectOption[];
   canManage: boolean;
   canChangeStatus: boolean;
   canValidate: boolean;
@@ -112,6 +131,8 @@ export default function TaskDetail({
   const [editLinkUrl, setEditLinkUrl] = useState(task.linkUrl || "");
   const [editImageUrl, setEditImageUrl] = useState(task.imageUrl || "");
   const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(task.assigneeIds);
+  const [editProjectId, setEditProjectId] = useState(task.projectId || "");
+  const [editRecurrence, setEditRecurrence] = useState<RecurrenceState>(recurrenceStateFromTask(task));
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
@@ -295,6 +316,8 @@ export default function TaskDetail({
     setEditLinkUrl(task.linkUrl || "");
     setEditImageUrl(task.imageUrl || "");
     setEditAssigneeIds(task.assigneeIds);
+    setEditProjectId(task.projectId || "");
+    setEditRecurrence(recurrenceStateFromTask(task));
     setEditError("");
     setEditing(true);
   }
@@ -302,6 +325,12 @@ export default function TaskDetail({
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     setEditError("");
+
+    if (editRecurrence.isRecurring && !editDueDate) {
+      setEditError("Une échéance est requise pour une tâche récurrente.");
+      return;
+    }
+
     setEditLoading(true);
 
     try {
@@ -317,6 +346,8 @@ export default function TaskDetail({
           imageUrl: editImageUrl,
           assigneeIds: editAssigneeIds,
           groupIds: fullyAssignedGroupIds(groups, editAssigneeIds),
+          projectId: editProjectId || null,
+          ...recurrencePayload(editRecurrence),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -409,7 +440,14 @@ export default function TaskDetail({
           <>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
               <h1 style={{ margin: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flex: 1 }}>
-                <span>{task.title}</span>
+                <span>
+                  {task.title}
+                  {task.isRecurring && (
+                    <span title="Tâche récurrente" style={{ marginLeft: 8, fontSize: 16 }}>
+                      🔁
+                    </span>
+                  )}
+                </span>
                 {status === "IN_PROGRESS" && <CircularProgress value={progress} size={32} strokeWidth={3} showLabel />}
               </h1>
               {canManage && (
@@ -510,15 +548,32 @@ export default function TaskDetail({
                 ))}
               </select>
             </div>
+            {projects.length > 0 && (
+              <div className="field">
+                <label htmlFor="editProjectId">Projet (optionnel)</label>
+                <select id="editProjectId" value={editProjectId} onChange={(e) => setEditProjectId(e.target.value)}>
+                  <option value="">Aucun projet</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
-              <label htmlFor="editDueDate">Échéance — date et heure</label>
+              <label htmlFor="editDueDate">
+                Échéance — date et heure {editRecurrence.isRecurring ? "" : "(optionnel)"}
+              </label>
               <input
                 id="editDueDate"
                 type="datetime-local"
                 value={editDueDate}
                 onChange={(e) => setEditDueDate(e.target.value)}
+                required={editRecurrence.isRecurring}
               />
             </div>
+            <RecurrenceFields value={editRecurrence} onChange={setEditRecurrence} disabled={editLoading} />
             <div className="field">
               <label htmlFor="editLinkUrl">Lien (optionnel)</label>
               <input
@@ -749,10 +804,39 @@ export default function TaskDetail({
           </p>
         </div>
 
+        {task.project && (
+          <div className="field">
+            <label>Projet</label>
+            <p style={{ margin: 0 }}>
+              <Link href={`/dashboard/projects/${task.project.id}`} style={{ color: "var(--color-primary)" }}>
+                {task.project.name}
+              </Link>
+            </p>
+          </div>
+        )}
+
         {task.dueDate && (
           <div className="field">
-            <label>Échéance</label>
+            <label>Échéance{task.isRecurring ? " (prochaine occurrence)" : ""}</label>
             <p style={{ margin: 0 }}>{formatDateTime(task.dueDate)}</p>
+          </div>
+        )}
+
+        {task.isRecurring && (
+          <div className="field">
+            <label>Récurrence</label>
+            <p style={{ margin: 0, fontSize: 13.5 }}>
+              {RECURRENCE_TYPE_LABELS[task.recurrenceType || ""] || task.recurrenceType}
+              {task.recurrenceType === "MONTHLY" && task.recurrenceDayOfMonth != null && (
+                <> — le {task.recurrenceDayOfMonth} de chaque mois</>
+              )}
+              {task.recurrenceType === "WEEKLY" && task.recurrenceDayOfWeek != null && (
+                <> — chaque {WEEKDAY_LABELS[task.recurrenceDayOfWeek]}</>
+              )}
+              {task.recurrenceType === "CUSTOM" && task.recurrenceIntervalDays != null && (
+                <> — tous les {task.recurrenceIntervalDays} jours</>
+              )}
+            </p>
           </div>
         )}
 

@@ -16,7 +16,7 @@ export default async function NewTaskPage() {
   const agent = await getCurrentAgent();
   if (!agent || (agent.role !== "ADMIN" && agent.role !== "MANAGER")) redirect("/dashboard/tasks");
 
-  const [members, groups] = await Promise.all([
+  const [members, groups, projects] = await Promise.all([
     prisma.agent.findMany({
       where: { companyId: agent!.companyId },
       orderBy: { joinedAt: "asc" },
@@ -26,6 +26,11 @@ export default async function NewTaskPage() {
       where: { companyId: agent!.companyId },
       orderBy: { createdAt: "asc" },
       include: { agents: { select: { id: true } } },
+    }),
+    prisma.project.findMany({
+      where: { companyId: agent!.companyId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -43,6 +48,7 @@ export default async function NewTaskPage() {
             lastName: m.user.lastName,
           }))}
           groups={groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.agents.map((a) => a.id) }))}
+          projects={projects}
         />
       </div>
     </div>

@@ -101,6 +101,7 @@ export default async function TasksPage({
         // Just done/not, per subtask — enough to show "2/5 sous-tâches" on
         // the card without a second query (see TaskCard.tsx).
         subtasks: { select: { done: true } },
+        project: { select: { id: true, name: true } },
       },
     }),
     // For the "chaque membre" filter dropdown — every agent in the
@@ -131,6 +132,8 @@ export default async function TasksPage({
     commentCount: task._count.comments,
     subtaskTotal: task.subtasks.length,
     subtaskDone: task.subtasks.filter((s) => s.done).length,
+    isRecurring: task.isRecurring,
+    project: task.project ? { id: task.project.id, name: task.project.name } : null,
     assignees: task.assignments.map((a) => ({
       id: a.agentId,
       firstName: a.agent.user.firstName,

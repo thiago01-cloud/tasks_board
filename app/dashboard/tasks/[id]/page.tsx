@@ -20,6 +20,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     where: { id },
     include: {
       creator: { include: { user: { select: { firstName: true, lastName: true } } } },
+      project: { select: { id: true, name: true } },
       assignments: { select: { agentId: true } },
       comments: {
         orderBy: { createdAt: "asc" },
@@ -31,7 +32,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
   if (!task || task.companyId !== agent!.companyId) notFound();
 
-  const [members, groups] = await Promise.all([
+  const [members, groups, projects] = await Promise.all([
     prisma.agent.findMany({
       where: { companyId: agent!.companyId },
       orderBy: { joinedAt: "asc" },
@@ -41,6 +42,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       where: { companyId: agent!.companyId },
       orderBy: { createdAt: "asc" },
       include: { agents: { select: { id: true } } },
+    }),
+    prisma.project.findMany({
+      where: { companyId: agent!.companyId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -73,6 +79,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     imageUrl: task.imageUrl,
     createdAt: task.createdAt.toISOString(),
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
+    projectId: task.projectId,
+    project: task.project ? { id: task.project.id, name: task.project.name } : null,
+    isRecurring: task.isRecurring,
+    recurrenceType: task.recurrenceType,
+    recurrenceDayOfMonth: task.recurrenceDayOfMonth,
+    recurrenceDayOfWeek: task.recurrenceDayOfWeek,
+    recurrenceIntervalDays: task.recurrenceIntervalDays,
     creator: {
       id: task.creator.id,
       firstName: task.creator.user.firstName,
@@ -105,6 +118,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           lastName: m.user.lastName,
         }))}
         groups={groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.agents.map((a) => a.id) }))}
+        projects={projects}
         canManage={canManage}
         canChangeStatus={canChangeStatus}
         canValidate={canValidate}

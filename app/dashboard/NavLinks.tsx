@@ -8,6 +8,11 @@ type NavLink = { href: string; label: string; exact?: boolean };
 const LINKS: NavLink[] = [
   { href: "/dashboard", label: "Tableau de bord", exact: true },
   { href: "/dashboard/tasks", label: "Tâches" },
+  // Open to every role, same as "Tâches" above — a MEMBER needs to see
+  // which projects exist and what's in them, even though creating one is
+  // reserved to admins/managers (see the "+ Nouveau projet" button's own
+  // gate in app/dashboard/projects/page.tsx and POST /api/projects).
+  { href: "/dashboard/projects", label: "Projets" },
 ];
 
 const TEAM_LINK: NavLink = { href: "/dashboard/team", label: "Équipe" };

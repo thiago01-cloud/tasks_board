@@ -15,6 +15,8 @@ export type BoardTask = {
   subtaskDone: number;
   hasLink: boolean;
   hasImage: boolean;
+  isRecurring: boolean;
+  project: { id: string; name: string } | null;
   assignees: { id: string; firstName: string; lastName: string }[];
 };
 
@@ -59,10 +61,15 @@ export default function TaskCard({ task }: { task: BoardTask }) {
     >
       <p className="task-card-title">
         {task.title}
+        {task.isRecurring && <span title="Tâche récurrente">🔁</span>}
         {task.status === "IN_PROGRESS" && (
           <CircularProgress value={task.progress} size={28} strokeWidth={3} showLabel />
         )}
       </p>
+
+      {task.project && (
+        <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--color-text-muted)" }}>📁 {task.project.name}</p>
+      )}
 
       <div className="task-card-meta">
         <span

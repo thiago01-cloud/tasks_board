@@ -52,6 +52,31 @@ export const TASK_PRIORITY_COLORS: Record<string, string> = {
   URGENT: "#b3261e",
 };
 
+// "Tâches répétitives" (see prisma/schema.prisma's recurrenceType and
+// lib/recurrence.ts) — a fixed list, same validate-in-code pattern as every
+// other String "enum" in this file.
+export const RECURRENCE_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"] as const;
+
+export const RECURRENCE_TYPE_LABELS: Record<string, string> = {
+  DAILY: "Quotidienne",
+  WEEKLY: "Hebdomadaire",
+  MONTHLY: "Mensuelle",
+  CUSTOM: "Intervalle personnalisé",
+};
+
+// Index 0 = dimanche, matching Date.prototype.getDay() — used by both the
+// recurrence form's day-of-week select and nextRecurrenceDate()'s own
+// display logic.
+export const WEEKDAY_LABELS: string[] = [
+  "Dimanche",
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+];
+
 // Every interaction with a task (assignment, status/progress change, edit,
 // comment) creates one row per notified agent — see PATCH /api/tasks/[id]
 // and POST /api/tasks/[id]/comments — surfaced by the bell in the sidebar
@@ -68,6 +93,9 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   // Sent to its assignees when that validation is refused — see POST
   // /api/tasks/[id]/reject.
   TASK_REJECTED: "Renvoyée en cours",
+  // Sent to every assignee + the creator when a recurring task resets
+  // itself for its next occurrence — see app/api/cron/task-recurrence.
+  TASK_RECURRENCE_RESET: "Tâche récurrente réinitialisée",
   // Sent by the cron job in app/api/cron/task-alerts/route.ts once a
   // task's "temps imparti" (creation → échéance, same convention as the
   // Performance readout in TaskDetail.tsx) has half/two-thirds elapsed —

@@ -95,9 +95,10 @@ model Company {
   ownerId String
   owner   User   @relation("CompanyOwner", fields: [ownerId], references: [id])
 
-  agents Agent[]
-  tasks  Task[]
-  groups Group[]
+  agents   Agent[]
+  tasks    Task[]
+  groups   Group[]
+  projects Project[]
 
   @@map("companies")
 }
@@ -180,6 +181,44 @@ model Group {
   @@map("groups")
 }
 
+// A larger initiative a company tracks — an "objectif" with its own
+// deliverable date, that a set of tasks are attached to (see
+// Task.projectId below). Deliberately thin: no status/progress field of
+// its own — see computeProjectProgress() in lib/projects.ts, which derives
+// it from the average progress of the project's own tasks every time it's
+// read, the same "always consistent with the tasks" reasoning as
+// Task.progress being derived from its subtasks (see Subtask's comment).
+model Project {
+  id           String    @id @default(cuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  // What the project is meant to achieve — shown alongside the
+  // description, kept as its own field (rather than folded into
+  // `description`) since it was asked for as a distinct piece of
+  // information ("un projet a un objectif").
+  objective    String?
+  deliveryDate DateTime?
+  createdAt    DateTime  @default(now())
+  // Who created this project — same nullable/SetNull pattern as
+  // Group.creatorId and Task.creatorId's own siblings: an ADMIN can
+  // manage any project, a MANAGER only the ones they created themselves
+  // (see canManageProject() in lib/projects.ts), and a project survives
+  // its creator leaving the company (falls back to admin-only from then
+  // on).
+  creatorId    String?
+  creator      Agent?    @relation("ProjectCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+
+  // Tasks attached to this project — see Task.projectId. Deliberately
+  // onDelete: SetNull there (not Cascade): deleting a project must not
+  // take its tasks down with it, only unlink them (see DELETE
+  // /api/projects/[id]).
+  tasks Task[]
+
+  @@map("projects")
+}
+
 // Links a User to a Company as staff, with the role scoped to that
 // company. Being the Company owner is a separate, direct relation
 // (Company.ownerId) — an owner may also hold an Agent record in their own
@@ -220,11 +259,12 @@ model Agent {
   // themselves.
   canManageSubscription Boolean @default(false)
 
-  createdTasks  Task[]         @relation("TaskCreator")
-  createdGroups Group[]        @relation("GroupCreator")
-  assignments   Assignment[]
-  comments      Comment[]
-  notifications Notification[]
+  createdTasks    Task[]             @relation("TaskCreator")
+  createdGroups   Group[]            @relation("GroupCreator")
+  createdProjects Project[]          @relation("ProjectCreator")
+  assignments     Assignment[]
+  comments        Comment[]
+  notifications   Notification[]
   pushSubscriptions PushSubscription[]
 
   @@unique([userId, companyId])
@@ -258,6 +298,38 @@ model Task {
   // inline preview instead of a plain link.
   linkUrl     String?
   imageUrl    String?
+
+  // Which project this task belongs to, if any (optional — most tasks
+  // stay unattached) — see Project's own comment. SetNull rather than
+  // Cascade/Restrict: deleting the project must not delete or block-delete
+  // its tasks, only unlink them (see DELETE /api/projects/[id]).
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  // ---- Recurrence ("tâches répétitives") ----
+  // Deliberately a single row that resets itself in place (per the
+  // product decision — see lib/recurrence.ts) rather than spawning a new
+  // Task per occurrence: there's only ever one "pay salaries" task, its
+  // `dueDate` acting as the next occurrence's deadline. The cron in
+  // app/api/cron/task-recurrence/route.ts resets status/progress/subtasks
+  // and recomputes `dueDate` once that deadline is reached, for every task
+  // with isRecurring = true, regardless of whether it was actually
+  // completed in time — a recurring task always comes back on schedule
+  // rather than staying stuck "overdue" forever.
+  isRecurring Boolean @default(false)
+  // "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM" — null unless isRecurring.
+  // See RECURRENCE_TYPES/RECURRENCE_TYPE_LABELS in lib/enums.ts.
+  recurrenceType String?
+  // MONTHLY only: the target day of month (1-31). A month shorter than
+  // that day (e.g. 31 in April) clamps to that month's last day — see
+  // nextRecurrenceDate() in lib/recurrence.ts.
+  recurrenceDayOfMonth Int?
+  // WEEKLY only: 0 (dimanche) - 6 (samedi), display/reference only — the
+  // actual next date is just `dueDate + 7 days`, which already lands on
+  // the same weekday, so this isn't re-read by nextRecurrenceDate().
+  recurrenceDayOfWeek Int?
+  // CUSTOM only: repeat every N days (e.g. "tous les 15 jours").
+  recurrenceIntervalDays Int?
 
   assignments   Assignment[]
   comments      Comment[]

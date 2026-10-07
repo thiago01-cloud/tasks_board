@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
 import { TASK_PRIORITIES } from "@/lib/enums";
 import { validGroupIds } from "@/lib/groups";
+import { validProjectId } from "@/lib/projects";
+import { parseRecurrenceInput } from "@/lib/recurrence";
 import { normalizeOptionalUrl } from "@/lib/urls";
 import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
@@ -42,6 +44,10 @@ export async function POST(request: Request) {
     // group does NOT, by itself, link the task to that group. See
     // Task.assignedGroups in schema.prisma.
     const groupIds = await validGroupIds(agent!.companyId, body.groupIds);
+    // Which project this task is attached to, if any — see
+    // Task.projectId's own comment in schema.prisma. Silently dropped if
+    // it doesn't belong to this company, same as groupIds above.
+    const projectId = await validProjectId(agent!.companyId, body.projectId);
 
     let dueDate: Date | null = null;
     if (body.dueDate) {
@@ -62,6 +68,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Le titre est requis." }, { status: 400 });
     }
 
+    // "Tâches répétitives" (see prisma/schema.prisma's recurrence* fields
+    // and lib/recurrence.ts): `dueDate` doubles as the recurring task's
+    // first/next occurrence, so it's required the moment isRecurring is
+    // checked — a recurring task with no anchor date would have nothing
+    // for app/api/cron/task-recurrence to compute its next reset from.
+    const recurrenceResult = parseRecurrenceInput(body);
+    if (!recurrenceResult.ok) {
+      return NextResponse.json({ error: recurrenceResult.error }, { status: 400 });
+    }
+    if (recurrenceResult.data.isRecurring && !dueDate) {
+      return NextResponse.json(
+        { error: "Une échéance est requise pour une tâche récurrente (c'est elle qui fixe la prochaine occurrence)." },
+        { status: 400 }
+      );
+    }
+
     // Only accept assignees who are actually staff of this company.
     const validAssignees = assigneeIds.length
       ? await prisma.agent.findMany({
@@ -80,6 +102,8 @@ export async function POST(request: Request) {
           dueDate,
           linkUrl: linkResult.url,
           imageUrl: imageResult.url,
+          projectId,
+          ...recurrenceResult.data,
           creatorId: agent!.id,
           assignments: {
             create: validAssignees.map((a) => ({ agentId: a.id })),

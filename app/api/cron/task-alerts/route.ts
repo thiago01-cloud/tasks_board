@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTaskAlertEmail } from "@/lib/email";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 // Cron job (see vercel.json's `crons` entry) — checks every task that
 // still has a due date and isn't DONE for whether it has just crossed the
@@ -88,6 +89,12 @@ export async function GET(request: Request) {
         data: [...recipients.keys()].map((agentId) => ({ agentId, type: threshold.type, taskId: task.id })),
       });
       notificationsCreated += recipients.size;
+
+      // Not inside a transaction here (this loop runs plain queries, not
+      // $transaction) — unlike the other call sites, so no need to wait
+      // until "after it commits": the notifications above are already
+      // durable by the time this runs.
+      await sendPushToAgents([...recipients.keys()], pushPayloadForTask(threshold.type, task));
 
       const taskUrl = `${origin}/dashboard/tasks/${task.id}`;
       for (const info of recipients.values()) {

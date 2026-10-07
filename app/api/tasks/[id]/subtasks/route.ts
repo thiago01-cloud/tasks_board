@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
 import { equalWeights, computeProgress, taskUpdateForProgress, notificationTypeForProgress } from "@/lib/subtasks";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 async function loadTaskWithSubtasks(id: string, companyId: string) {
   const task = await prisma.task.findUnique({
@@ -47,6 +48,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Le titre de la sous-tâche est requis." }, { status: 400 });
     }
 
+    let pushRecipients: string[] = [];
+    let pushType = "";
+
     const result = await prisma.$transaction(async (tx) => {
       const created = await tx.subtask.create({
         data: { taskId: id, title, order: task.subtasks.length },
@@ -67,14 +71,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         recipients.add(task.creatorId);
         recipients.delete(agent!.id);
         if (recipients.size > 0) {
+          pushType = notificationTypeForProgress(update);
+          pushRecipients = [...recipients];
           await tx.notification.createMany({
-            data: [...recipients].map((agentId) => ({ agentId, type: notificationTypeForProgress(update), taskId: id })),
+            data: pushRecipients.map((agentId) => ({ agentId, type: pushType, taskId: id })),
           });
         }
       }
 
       return tx.subtask.findMany({ where: { taskId: id }, orderBy: { order: "asc" } });
     });
+
+    if (pushRecipients.length) {
+      await sendPushToAgents(pushRecipients, pushPayloadForTask(pushType, { id, title: task.title }));
+    }
 
     return NextResponse.json({ subtasks: result }, { status: 201 });
   } catch (err) {
@@ -137,6 +147,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       );
     }
 
+    let pushRecipients: string[] = [];
+    let pushType = "";
+
     const result = await prisma.$transaction(async (tx) => {
       await Promise.all(
         task.subtasks.map((s) => tx.subtask.update({ where: { id: s.id }, data: { weight: parsed[s.id] } }))
@@ -151,14 +164,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         recipients.add(task.creatorId);
         recipients.delete(agent!.id);
         if (recipients.size > 0) {
+          pushType = notificationTypeForProgress(update);
+          pushRecipients = [...recipients];
           await tx.notification.createMany({
-            data: [...recipients].map((agentId) => ({ agentId, type: notificationTypeForProgress(update), taskId: id })),
+            data: pushRecipients.map((agentId) => ({ agentId, type: pushType, taskId: id })),
           });
         }
       }
 
       return tx.subtask.findMany({ where: { taskId: id }, orderBy: { order: "asc" } });
     });
+
+    if (pushRecipients.length) {
+      await sendPushToAgents(pushRecipients, pushPayloadForTask(pushType, { id, title: task.title }));
+    }
 
     return NextResponse.json({ subtasks: result });
   } catch (err) {

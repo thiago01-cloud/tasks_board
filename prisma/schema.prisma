@@ -225,6 +225,7 @@ model Agent {
   assignments   Assignment[]
   comments      Comment[]
   notifications Notification[]
+  pushSubscriptions PushSubscription[]
 
   @@unique([userId, companyId])
   @@map("agents")
@@ -335,4 +336,24 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+// One row per browser/device an agent has turned push notifications on
+// for (PWA — see public/sw.js and lib/push.ts). An agent can have several
+// (phone + laptop, two browsers, ...), each with its own Web Push
+// endpoint/keys handed back by the browser's PushManager.subscribe() —
+// see POST /api/push/subscribe. Removed automatically by lib/push.ts the
+// moment a send comes back 404/410 (the browser unsubscribed, the device
+// was reset, ...), so this table never accumulates permanently-dead
+// subscriptions.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@map("push_subscriptions")
 }

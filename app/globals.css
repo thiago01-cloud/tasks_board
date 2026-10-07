@@ -1113,30 +1113,6 @@ input, select, textarea, button {
   box-shadow: 0 0 0 2px var(--color-primary);
 }
 
-.notification-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: min(340px, 88vw);
-  max-height: 400px;
-  overflow-y: auto;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  z-index: 50;
-  padding: 4px;
-}
-
-.notification-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px 6px;
-}
-
 .notification-item {
   display: block;
   padding: 9px 10px;
@@ -1436,25 +1412,6 @@ input, select, textarea, button {
     min-width: 0;
     flex: 1;
     margin-right: 8px;
-  }
-
-  /* The notification panel's default position (absolute, anchored to the
-     bell's own right edge, up to 340px wide) assumes plenty of room to its
-     left — true in the desktop sidebar, not in the ~48px-tall mobile bar,
-     where the bell sits close to the right edge. Left unconstrained there,
-     the panel gets pushed mostly off-screen to the left and clipped by the
-     mobile bar's own stacking, showing as a cramped, cut-off sliver. Pin it
-     to the viewport instead, just below the sticky bar. Only the mobile-bar
-     bell is reachable on mobile (.sidebar-logo, the other place it renders,
-     is hidden here — see above), so this only ever applies to that one. */
-  .notification-panel {
-    position: fixed;
-    top: 58px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-width: none;
-    max-height: min(420px, 70vh);
   }
 
   .sidebar {

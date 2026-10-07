@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { NOTIFICATION_TYPE_LABELS } from "@/lib/enums";
 import { formatDateTimeShort } from "@/lib/dates";
+import Modal from "./Modal";
 
 type NotificationItem = {
   id: string;
@@ -28,7 +29,7 @@ function BellIcon() {
   );
 }
 
-// Bell + dropdown for the notifications every task interaction generates
+// Bell + modal for the notifications every task interaction generates
 // (assignment, status/progress change, edit, comment — see
 // PATCH /api/tasks/[id] and POST /api/tasks/[id]/comments) for whoever's
 // linked to that task. Rendered twice by Sidebar.tsx (mobile bar + the
@@ -39,7 +40,6 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[] | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     setLoading(true);
@@ -75,26 +75,6 @@ export default function NotificationBell() {
     return () => window.removeEventListener("app:refresh-tick", handleTick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
 
   function toggleOpen() {
     const next = !open;
@@ -133,7 +113,7 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="notification-bell" ref={containerRef}>
+    <div className="notification-bell">
       <button
         type="button"
         className="icon-button"
@@ -146,65 +126,68 @@ export default function NotificationBell() {
         {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
       </button>
 
-      {open && (
-        <div className="notification-panel" role="menu">
-          <div className="notification-panel-header">
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={markAllRead}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--color-primary)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Tout marquer comme lu
-              </button>
-            )}
+      {/* Centered modal instead of a dropdown anchored to the bell — same
+          shell as the invite-link sharing panel (TeamMemberDetail.tsx), so
+          its content is never clipped by an ancestor's overflow (see
+          .sidebar's own comment in globals.css) and doesn't need a
+          separate cramped-mobile-bar layout the way the old anchored
+          dropdown did. */}
+      <Modal open={open} onClose={() => setOpen(false)} title="Notifications">
+        {unreadCount > 0 && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <button
+              type="button"
+              onClick={markAllRead}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--color-primary)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              Tout marquer comme lu
+            </button>
           </div>
+        )}
 
-          {loading && notifications === null && (
-            <p style={{ margin: "6px 10px", fontSize: 13, color: "var(--color-text-muted)" }}>Chargement...</p>
-          )}
+        {loading && notifications === null && (
+          <p style={{ margin: "6px 0", fontSize: 13, color: "var(--color-text-muted)" }}>Chargement...</p>
+        )}
 
-          {notifications !== null && notifications.length === 0 && (
-            <p style={{ margin: "6px 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
-              Aucune notification pour l&apos;instant.
-            </p>
-          )}
+        {notifications !== null && notifications.length === 0 && (
+          <p style={{ margin: "6px 0", fontSize: 13, color: "var(--color-text-muted)" }}>
+            Aucune notification pour l&apos;instant.
+          </p>
+        )}
 
-          {notifications?.map((n) =>
-            n.task ? (
-              <Link
-                key={n.id}
-                href={`/dashboard/tasks/${n.task.id}`}
-                className="notification-item"
-                data-unread={n.read ? undefined : "true"}
-                onClick={() => {
-                  if (!n.read) markOneRead(n.id);
-                  setOpen(false);
-                }}
-              >
-                <p className="notification-item-title">{n.task.title}</p>
-                <p className="notification-item-meta">
-                  {NOTIFICATION_TYPE_LABELS[n.type] || n.type} · {formatDateTimeShort(n.createdAt)}
-                </p>
-              </Link>
-            ) : (
-              <div key={n.id} className="notification-item" data-unread={n.read ? undefined : "true"}>
-                <p className="notification-item-title">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</p>
-                <p className="notification-item-meta">{formatDateTimeShort(n.createdAt)}</p>
-              </div>
-            )
-          )}
-        </div>
-      )}
+        {notifications?.map((n) =>
+          n.task ? (
+            <Link
+              key={n.id}
+              href={`/dashboard/tasks/${n.task.id}`}
+              className="notification-item"
+              data-unread={n.read ? undefined : "true"}
+              onClick={() => {
+                if (!n.read) markOneRead(n.id);
+                setOpen(false);
+              }}
+            >
+              <p className="notification-item-title">{n.task.title}</p>
+              <p className="notification-item-meta">
+                {NOTIFICATION_TYPE_LABELS[n.type] || n.type} · {formatDateTimeShort(n.createdAt)}
+              </p>
+            </Link>
+          ) : (
+            <div key={n.id} className="notification-item" data-unread={n.read ? undefined : "true"}>
+              <p className="notification-item-title">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</p>
+              <p className="notification-item-meta">{formatDateTimeShort(n.createdAt)}</p>
+            </div>
+          )
+        )}
+      </Modal>
     </div>
   );
 }

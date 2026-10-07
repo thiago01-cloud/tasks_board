@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured, canValidateTask } from "@/lib/auth";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 // The other half of task validation (see PATCH /api/tasks/[id]'s handling
 // of `status: "DONE"`): whoever can validate a task that's currently
@@ -51,6 +52,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
+    let pushRecipients: string[] = [];
+
     const comment = await prisma.$transaction(async (tx) => {
       await tx.task.update({ where: { id }, data: { status: "IN_PROGRESS" } });
 
@@ -65,13 +68,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       recipients.delete(agent!.id);
 
       if (recipients.size > 0) {
+        pushRecipients = [...recipients];
         await tx.notification.createMany({
-          data: [...recipients].map((agentId) => ({ agentId, type: "TASK_REJECTED", taskId: id })),
+          data: pushRecipients.map((agentId) => ({ agentId, type: "TASK_REJECTED", taskId: id })),
         });
       }
 
       return created;
     });
+
+    if (pushRecipients.length) {
+      await sendPushToAgents(pushRecipients, pushPayloadForTask("TASK_REJECTED", { id, title: task.title }));
+    }
 
     return NextResponse.json({ ok: true, comment });
   } catch (err) {

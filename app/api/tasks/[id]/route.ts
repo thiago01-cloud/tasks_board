@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured, canValidateTask } from "@/lib/auth";
 import { TASK_STATUSES, TASK_PRIORITIES } from "@/lib/enums";
 import { normalizeOptionalUrl } from "@/lib/urls";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 async function loadTaskForCompany(id: string, companyId: string) {
   const task = await prisma.task.findUnique({
@@ -234,10 +235,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       (data.linkUrl !== undefined && data.linkUrl !== task.linkUrl) ||
       (data.imageUrl !== undefined && data.imageUrl !== task.imageUrl);
 
-    await prisma.$transaction(async (tx) => {
+    const pushJobs = await prisma.$transaction(async (tx) => {
       if (Object.keys(data).length > 0) {
         await tx.task.update({ where: { id }, data });
       }
+
+      // Collected as plain {agentId, type} pairs while the transaction
+      // runs (no network I/O here — just bookkeeping) and sent as actual
+      // push notifications only after it commits, same reasoning as
+      // POST /api/tasks.
+      const jobs: { agentId: string; type: string }[] = [];
 
       // Tracks who's assigned after this request (defaults to who was
       // assigned before it, updated below if assigneeIds changed) — used
@@ -273,6 +280,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           await tx.notification.createMany({
             data: newlyAdded.map((agentId) => ({ agentId, type: "TASK_ASSIGNED", taskId: id })),
           });
+          for (const agentId of newlyAdded) jobs.push({ agentId, type: "TASK_ASSIGNED" });
         }
       }
 
@@ -321,9 +329,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
               notifTypes.map((type) => ({ agentId, type, taskId: id }))
             ),
           });
+          for (const agentId of recipients) {
+            for (const type of notifTypes) jobs.push({ agentId, type });
+          }
         }
       }
+
+      return jobs;
     });
+
+    if (pushJobs.length) {
+      const taskTitle = data.title !== undefined ? data.title : task.title;
+      const byType = new Map<string, Set<string>>();
+      for (const job of pushJobs) {
+        if (!byType.has(job.type)) byType.set(job.type, new Set());
+        byType.get(job.type)!.add(job.agentId);
+      }
+      await Promise.all(
+        [...byType.entries()].map(([type, agentIds]) =>
+          sendPushToAgents(agentIds, pushPayloadForTask(type, { id, title: taskTitle }))
+        )
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

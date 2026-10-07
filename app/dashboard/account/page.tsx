@@ -3,6 +3,7 @@ import { getCurrentAgent } from "@/lib/auth";
 import { pageTitle } from "@/lib/constants";
 import AccountForm from "./AccountForm";
 import PasswordForm from "./PasswordForm";
+import PushNotificationsCard from "./PushNotificationsCard";
 
 export const metadata = {
   title: pageTitle("Mon compte"),
@@ -39,10 +40,12 @@ export default async function AccountPage() {
         />
       </div>
 
-      <div className="card" style={{ maxWidth: 480 }}>
+      <div className="card" style={{ marginBottom: 20, maxWidth: 480 }}>
         <h3 style={{ marginTop: 0 }}>Mot de passe</h3>
         <PasswordForm />
       </div>
+
+      <PushNotificationsCard />
     </div>
   );
 }

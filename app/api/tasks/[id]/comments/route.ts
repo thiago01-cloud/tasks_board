@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 // Adds a comment to a task. Any member of the task's company can comment
 // — discussion isn't gated behind admin/manager the way editing is.
@@ -24,6 +25,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Le commentaire est vide." }, { status: 400 });
     }
 
+    let pushRecipients: string[] = [];
+
     const comment = await prisma.$transaction(async (tx) => {
       const created = await tx.comment.create({
         data: { taskId: id, authorId: agent!.id, content },
@@ -37,13 +40,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       recipients.delete(agent!.id);
 
       if (recipients.size > 0) {
+        pushRecipients = [...recipients];
         await tx.notification.createMany({
-          data: [...recipients].map((agentId) => ({ agentId, type: "TASK_COMMENT", taskId: id })),
+          data: pushRecipients.map((agentId) => ({ agentId, type: "TASK_COMMENT", taskId: id })),
         });
       }
 
       return created;
     });
+
+    if (pushRecipients.length) {
+      await sendPushToAgents(pushRecipients, pushPayloadForTask("TASK_COMMENT", { id, title: task.title }));
+    }
 
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {

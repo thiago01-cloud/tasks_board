@@ -4,6 +4,7 @@ import { requireAgentEnsured } from "@/lib/auth";
 import { TASK_PRIORITIES } from "@/lib/enums";
 import { validGroupIds } from "@/lib/groups";
 import { normalizeOptionalUrl } from "@/lib/urls";
+import { sendPushToAgents, pushPayloadForTask } from "@/lib/push";
 
 // Creates a task in the current company. Reserved for admins (which
 // includes a company's OWNER — see getCurrentAgent()'s role normalization
@@ -89,18 +90,24 @@ export async function POST(request: Request) {
         },
       });
 
-      if (validAssignees.length) {
+      const notifyIds = validAssignees.filter((a) => a.id !== agent!.id).map((a) => a.id);
+      if (notifyIds.length) {
         await tx.notification.createMany({
-          data: validAssignees
-            .filter((a) => a.id !== agent!.id)
-            .map((a) => ({ agentId: a.id, type: "TASK_ASSIGNED", taskId: created.id })),
+          data: notifyIds.map((agentId) => ({ agentId, type: "TASK_ASSIGNED", taskId: created.id })),
         });
       }
 
-      return created;
+      return { created, notifyIds };
     });
 
-    return NextResponse.json({ task }, { status: 201 });
+    // Push notification (PWA — see lib/push.ts), after the transaction
+    // commits: never worth holding a DB transaction open for a network
+    // call, and a push failure must never roll back the task creation.
+    if (task.notifyIds.length) {
+      await sendPushToAgents(task.notifyIds, pushPayloadForTask("TASK_ASSIGNED", task.created));
+    }
+
+    return NextResponse.json({ task: task.created }, { status: 201 });
   } catch (err) {
     console.error("POST /api/tasks failed:", err);
     return NextResponse.json({ error: "Erreur serveur. Réessayez." }, { status: 500 });

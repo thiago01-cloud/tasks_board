@@ -29,7 +29,7 @@ export const APP_DESCRIPTION =
 
 export const FOOTER_SIGNATURE =
 
-  "By EseaX Corporate, JLNM 2026";
+  "By EasyX Corporate, JLNM 2026";
 
 // "TASKS" palette — must stay in sync with the CSS variables defined in
 // app/globals.css (:root).

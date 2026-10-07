@@ -1116,9 +1116,14 @@ input, select, textarea, button {
 .notification-item {
   display: block;
   padding: 9px 10px;
+  margin-bottom: 6px;
   border-radius: calc(var(--radius) - 3px);
   text-decoration: none;
   color: var(--color-text);
+}
+
+.notification-item:last-child {
+  margin-bottom: 0;
 }
 
 .notification-item:hover {

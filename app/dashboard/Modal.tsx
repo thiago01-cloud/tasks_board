@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Small reusable modal shell — used for anything that needs to show a
 // short panel of actions/instructions above the page rather than inline
@@ -10,6 +11,16 @@ import { useEffect } from "react";
 // this one holds richer content (buttons, links, help text) and closes via
 // its own × button, the backdrop, or Escape — never by "confirming"
 // anything.
+//
+// Rendered through a portal straight into <body> rather than in place in
+// the component tree. Without that, a `position: fixed` overlay nested
+// several levels deep (e.g. NotificationBell.tsx's instance, which lives
+// inside the sidebar) can still end up z-index-fighting with unrelated
+// page content in some browsers — the dashboard's big circular-progress
+// stat rings (CircularProgress.tsx, size=54) were observed painting on
+// top of this exact modal despite its z-index: 100 (see globals.css). A
+// portal sidesteps the whole class of "ancestor stacking context" bugs
+// instead of chasing each stray z-index one at a time.
 export default function Modal({
   open,
   onClose,
@@ -21,6 +32,14 @@ export default function Modal({
   title: string;
   children: React.ReactNode;
 }) {
+  // document.body isn't available during SSR/the first render pass, so the
+  // portal target is only resolved once mounted client-side — avoids a
+  // hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
@@ -30,9 +49,9 @@ export default function Modal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-dialog"
@@ -51,6 +70,7 @@ export default function Modal({
         </div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

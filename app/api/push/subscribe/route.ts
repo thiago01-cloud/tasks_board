@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAgent } from "@/lib/auth";
+import { requireAgentEnsured } from "@/lib/auth";
 
 // Registers (POST) or removes (DELETE) this browser's Web Push
 // subscription for the signed-in agent — called by
@@ -8,8 +8,15 @@ import { requireAgent } from "@/lib/auth";
 // PushManager.subscribe()/unsubscribe(). See lib/push.ts for how these
 // rows get used, and prisma/schema.prisma's PushSubscription model for
 // why `endpoint` alone is enough to identify a device.
+//
+// requireAgentEnsured() rather than the plain requireAgent(): a
+// PushSubscription row needs a real Agent id to hang its foreign key off
+// of, and requireAgent()'s own agent.id can be null (an owner who has no
+// Agent record yet in their own company — see its comment in lib/auth.ts).
+// requireAgentEnsured() lazily creates that record instead, same as every
+// other route under app/api/tasks that writes agent-scoped rows.
 export async function POST(request: Request) {
-  const { agent, error } = await requireAgent();
+  const { agent, error } = await requireAgentEnsured();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -35,7 +42,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { agent, error } = await requireAgent();
+  const { agent, error } = await requireAgentEnsured();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));

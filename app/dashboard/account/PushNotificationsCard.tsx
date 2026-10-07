@@ -78,7 +78,11 @@ export default function PushNotificationsCard() {
       const registration = await navigator.serviceWorker.register("/sw.js");
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+        // Cast needed only to satisfy TS 5.7+'s now-generic Uint8Array type
+        // (Uint8Array<ArrayBufferLike> vs the DOM lib's stricter
+        // BufferSource/ArrayBuffer expectation) — the value itself is a
+        // perfectly normal, non-shared Uint8Array at runtime.
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!) as BufferSource,
       });
 
       const res = await fetch("/api/push/subscribe", {

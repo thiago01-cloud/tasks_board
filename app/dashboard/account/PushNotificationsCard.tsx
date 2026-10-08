@@ -32,6 +32,8 @@ export default function PushNotificationsCard() {
   const [status, setStatus] = useState<Status>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -121,6 +123,27 @@ export default function PushNotificationsCard() {
     setBusy(false);
   }
 
+  // Calls POST /api/push/test (see that route's own comment) — a real
+  // round-trip through the server, not a client-side fake, so it
+  // genuinely exercises the VAPID keys + this subscription + the browser
+  // actually delivering the notification, not just "the toggle says on".
+  async function handleSendTest() {
+    setTestResult("");
+    setTestBusy(true);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      setTestResult(
+        res.ok
+          ? "Notification de test envoyée — elle devrait apparaître dans quelques secondes."
+          : data.error || "Une erreur est survenue."
+      );
+    } catch {
+      setTestResult("Impossible de contacter le serveur. Réessayez.");
+    }
+    setTestBusy(false);
+  }
+
   return (
     <div className="card" style={{ maxWidth: 480 }}>
       <h3 style={{ marginTop: 0 }}>Notifications push</h3>
@@ -162,16 +185,24 @@ export default function PushNotificationsCard() {
       )}
 
       {status === "on" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span
-            className="badge"
-            style={{ color: "var(--color-success)", borderColor: "var(--color-success)" }}
-          >
-            Activées sur cet appareil
-          </span>
-          <button type="button" className="button-secondary button" onClick={handleDisable} disabled={busy}>
-            {busy ? "Désactivation..." : "Désactiver"}
-          </button>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span
+              className="badge"
+              style={{ color: "var(--color-success)", borderColor: "var(--color-success)" }}
+            >
+              Activées sur cet appareil
+            </span>
+            <button type="button" className="button-secondary button" onClick={handleDisable} disabled={busy}>
+              {busy ? "Désactivation..." : "Désactiver"}
+            </button>
+            <button type="button" className="button-secondary button" onClick={handleSendTest} disabled={testBusy}>
+              {testBusy ? "Envoi..." : "Envoyer une notification de test"}
+            </button>
+          </div>
+          {testResult && (
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-text-muted)" }}>{testResult}</p>
+          )}
         </div>
       )}
 

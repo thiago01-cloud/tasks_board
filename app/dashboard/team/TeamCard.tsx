@@ -13,6 +13,12 @@ type TeamMember = {
   role: string;
   groupNames: string[];
   canManageSubscription: boolean;
+  // Whether this teammate has at least one active Web Push subscription
+  // (see page.tsx's own comment) — each person turns this on themselves,
+  // from their own "Mon compte" page, so this is the only way an admin
+  // can tell whether a teammate will actually receive push notifications
+  // for the tasks they're linked to, as opposed to just the in-app bell.
+  pushEnabled: boolean;
 };
 
 // Plain summary card — every action that used to live here directly
@@ -69,6 +75,21 @@ export default function TeamCard({
             Gère l&apos;abonnement
           </span>
         )}
+        <span
+          className="badge"
+          style={
+            agent.pushEnabled
+              ? { color: "var(--color-success)", borderColor: "var(--color-success)" }
+              : { color: "var(--color-text-muted)" }
+          }
+          title={
+            agent.pushEnabled
+              ? "Cette personne recevra les notifications push liées aux tâches."
+              : "Cette personne n'a pas encore activé les notifications push sur son compte (page « Mon compte ») — elle ne recevra que la cloche et les emails."
+          }
+        >
+          {agent.pushEnabled ? "🔔 Push activé" : "🔕 Push non activé"}
+        </span>
       </div>
 
       <div className="team-card-contact">

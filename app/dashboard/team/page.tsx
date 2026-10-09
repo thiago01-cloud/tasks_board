@@ -48,6 +48,20 @@ export default async function TeamPage() {
     }),
   ]);
 
+  // Whether each teammate has at least one active Web Push subscription
+  // (see lib/push.ts's PushSubscription model) — surfaced as a badge on
+  // TeamCard.tsx. Activating push is per-account and per-device (each
+  // person does it themselves, from their own session, on "Mon compte"),
+  // so an admin has no other way to tell whether a given teammate's task
+  // notifications will actually reach their device, or whether they just
+  // haven't turned it on yet.
+  const pushSubscribers = await prisma.pushSubscription.findMany({
+    where: { agentId: { in: companyMembers.map((m) => m.id) } },
+    select: { agentId: true },
+    distinct: ["agentId"],
+  });
+  const pushEnabledIds = new Set(pushSubscribers.map((s) => s.agentId));
+
   const memberOptions = companyMembers.map((m) => ({
     id: m.id,
     name: `${m.user.firstName} ${m.user.lastName}`,
@@ -76,6 +90,7 @@ export default async function TeamPage() {
               role: member.role,
               groupNames: member.groups.map((g) => g.name),
               canManageSubscription: member.canManageSubscription,
+              pushEnabled: pushEnabledIds.has(member.id),
             }}
             isMe={member.userId === agent.userId}
             // Whether the viewer (admin or manager) may share this

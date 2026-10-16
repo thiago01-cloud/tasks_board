@@ -1,7 +1,12 @@
 "use client";
 
-import { createContext, useContext, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useRef, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
+// Shared with TaskFilters.tsx's "Réinitialiser" button, which clears this
+// key directly (see its own comment) rather than going through
+// FilterMemory below.
+export const TASK_FILTERS_STORAGE_KEY = "tasks:filters";
 
 // Every filter change (TaskFilters.tsx) re-renders the whole board from
 // the server — a real navigation, not instant. Wrapping it in a
@@ -58,4 +63,56 @@ export function TaskLoadingIndicator() {
   const { isPending } = useTaskNavigation();
   if (!isPending) return null;
   return <span className="task-loading-spinner" role="status" aria-label="Chargement des tâches..." />;
+}
+
+// "Garder en mémoire les filtres dans tâches" — makes a bare
+// /dashboard/tasks visit (no query params at all) restore whatever
+// assigné/priorité/groupe/statut combination was last explicitly picked,
+// instead of always re-running page.tsx's own smart-default cascade.
+// Renders nothing; just watches the two values page.tsx already computed:
+//   - `hasExplicitFilter` true (the URL carries at least one filter param,
+//     however it got there): save `queryString` — built from the actual
+//     params, never from a cascade default — as the new memory.
+//   - `hasExplicitFilter` false (bare visit): if something was saved
+//     before, redirect once to it so the cascade never even runs. Nothing
+//     saved (first-ever visit, or right after "Réinitialiser" cleared it
+//     — see TaskFilters.tsx) means there's nothing to restore, so the
+//     cascade's own default stands.
+// A `useRef` guards against redirecting more than once per mount (the
+// effect also re-runs if `queryString` changes for unrelated reasons).
+export function FilterMemory({
+  hasExplicitFilter,
+  queryString,
+}: {
+  hasExplicitFilter: boolean;
+  queryString: string;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const redirected = useRef(false);
+
+  useEffect(() => {
+    if (hasExplicitFilter) {
+      try {
+        window.localStorage.setItem(TASK_FILTERS_STORAGE_KEY, queryString);
+      } catch {
+        // Private browsing / storage disabled — filters just won't persist.
+      }
+      return;
+    }
+    if (redirected.current) return;
+    let saved = "";
+    try {
+      saved = window.localStorage.getItem(TASK_FILTERS_STORAGE_KEY) || "";
+    } catch {
+      saved = "";
+    }
+    if (saved) {
+      redirected.current = true;
+      router.replace(`${pathname}?${saved}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasExplicitFilter, queryString]);
+
+  return null;
 }

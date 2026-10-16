@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgent, requireAgentEnsured } from "@/lib/auth";
-import { validMemberIds } from "@/lib/groups";
+import { validMemberIds, promoteLeaderIfNeeded } from "@/lib/groups";
 
 // Lists the company's groups, each with its member ids — any connected
 // member can read this (used both by the team page, open to admins and
@@ -15,7 +15,10 @@ export async function GET() {
     const groups = await prisma.group.findMany({
       where: { companyId: agent!.companyId },
       orderBy: { createdAt: "asc" },
-      include: { agents: { select: { id: true } } },
+      include: {
+        agents: { select: { id: true } },
+        leader: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+      },
     });
 
     return NextResponse.json({
@@ -24,6 +27,9 @@ export async function GET() {
         name: g.name,
         memberIds: g.agents.map((a) => a.id),
         creatorId: g.creatorId,
+        parentId: g.parentId,
+        leaderId: g.leaderId,
+        leaderName: g.leader ? `${g.leader.user.firstName} ${g.leader.user.lastName}` : null,
       })),
     });
   } catch (err) {
@@ -35,7 +41,10 @@ export async function GET() {
 // Creates a group with its initial members in one go. Open to admins and
 // managers alike — a manager can later only edit/delete the groups they
 // created themselves, same rule as tasks (see PATCH/DELETE
-// /api/groups/[id]).
+// /api/groups/[id]). Can optionally be created directly under a parent
+// group (`parentId`) and/or with a "chef" (`leaderId`) — see
+// lib/groups.ts's promoteLeaderIfNeeded() for what appointing one does to
+// that agent's role.
 export async function POST(request: Request) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
@@ -56,17 +65,50 @@ export async function POST(request: Request) {
 
     const memberIds = await validMemberIds(agent!.companyId, body.memberIds);
 
-    const group = await prisma.group.create({
-      data: {
-        companyId: agent!.companyId,
-        name,
-        creatorId: agent!.id,
-        agents: { connect: memberIds.map((id) => ({ id })) },
-      },
+    let parentId: string | null = null;
+    if (body.parentId) {
+      const parent = await prisma.group.findUnique({ where: { id: body.parentId } });
+      if (!parent || parent.companyId !== agent!.companyId) {
+        return NextResponse.json({ error: "Groupe parent introuvable." }, { status: 400 });
+      }
+      parentId = parent.id;
+    }
+
+    let leaderId: string | null = null;
+    if (body.leaderId) {
+      const [leader] = await validMemberIds(agent!.companyId, [body.leaderId]);
+      if (!leader) {
+        return NextResponse.json({ error: "Chef de groupe introuvable." }, { status: 400 });
+      }
+      leaderId = leader;
+    }
+
+    const group = await prisma.$transaction(async (tx) => {
+      const created = await tx.group.create({
+        data: {
+          companyId: agent!.companyId,
+          name,
+          creatorId: agent!.id,
+          parentId,
+          leaderId,
+          agents: { connect: memberIds.map((id) => ({ id })) },
+        },
+      });
+      await promoteLeaderIfNeeded(tx, leaderId);
+      return created;
     });
 
     return NextResponse.json(
-      { group: { id: group.id, name: group.name, memberIds, creatorId: group.creatorId } },
+      {
+        group: {
+          id: group.id,
+          name: group.name,
+          memberIds,
+          creatorId: group.creatorId,
+          parentId: group.parentId,
+          leaderId: group.leaderId,
+        },
+      },
       { status: 201 }
     );
   } catch (err) {

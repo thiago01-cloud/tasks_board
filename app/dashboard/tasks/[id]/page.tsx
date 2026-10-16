@@ -52,10 +52,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
   const isCreator = task.creatorId === agent!.id;
   const isAssignee = task.assignments.some((a) => a.agentId === agent!.id);
-  // Structural edits (the "Modifier" panel) and delete: any admin, or a
-  // manager but only on a task they created themselves — see
+  const isOwner = agent!.userId === agent!.ownerId;
+  // Structural edits (the "Modifier" panel) and delete: only the
+  // company's owner, or this task's own creator — see
   // PATCH/DELETE /api/tasks/[id]'s own comments for the full rule.
-  const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && isCreator);
+  const canManage = isOwner || isCreator;
   // Status/progress stay open to whoever's actually working the task.
   const canChangeStatus = canManage || isCreator || isAssignee;
   // Whether this agent can validate/reject the task once it's TO_VALIDATE

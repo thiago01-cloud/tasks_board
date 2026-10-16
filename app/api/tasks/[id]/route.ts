@@ -26,13 +26,14 @@ async function loadTaskForCompany(id: string, companyId: string) {
 //    normally just its creator. See POST /api/tasks/[id]/reject for the
 //    other half of that review (sending it back with a reason instead).
 //  - Everything else (title, description, priority, due date, who's
-//    assigned) is reserved for admins (which includes a company's OWNER —
-//    see getCurrentAgent()'s role normalization), plus a MANAGER but only
-//    on a task they created themselves — since it reshapes the task
-//    rather than just tracking its progress. Deleting a task follows the
-//    same rule — see DELETE below. Creating one only requires being an
-//    admin or a manager (see POST /api/tasks) since there's no existing
-//    task to be "not the creator of" yet.
+//    assigned) is reserved for the company's OWNER or this task's own
+//    creator — nobody else, not even another admin, gets to reshape a
+//    task they didn't create (see the product decision behind this:
+//    "Seul le propriétaire et le créateur de la tâche peuvent la
+//    modifier"). Deleting a task follows the same rule — see DELETE
+//    below. Creating one only requires being an admin or a manager (see
+//    POST /api/tasks) since there's no existing task to be "not the
+//    creator of" yet.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
@@ -49,12 +50,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const isCreator = task.creatorId === agent!.id;
     const isAssignee = task.assignments.some((a) => a.agentId === agent!.id);
+    const isOwner = agent!.userId === agent!.ownerId;
     // Broad tier — status/progress: creator, an assignee, or an admin.
     const canWork = agent!.role === "ADMIN" || isCreator || isAssignee;
-    // Strict tier — structural edits, assignment changes, delete: any
-    // admin, or a manager but only on a task they created (see the
-    // function comment above).
-    const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && isCreator);
+    // Strict tier — structural edits, assignment changes, delete: only the
+    // company's owner, or this task's own creator (see the function
+    // comment above).
+    const canManage = isOwner || isCreator;
 
     const body = await request.json().catch(() => ({}));
     // Built up field by field below, then passed straight to
@@ -143,13 +145,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // Skipped when `status` was already set explicitly in this same
       // request (that block already decided), or when it's already
       // TO_VALIDATE/DONE (no re-queuing on a no-op resend at 100%).
+      // One exception: when the task's own creator is the one reaching
+      // 100% themselves, there's nobody else left to validate it against
+      // — skip the TO_VALIDATE detour entirely and land straight on DONE
+      // ("lorsqu'on valide une tâche que l'on a soi-même créée, elle passe
+      // directement à Terminée").
       if (
         data.progress === 100 &&
         body.status === undefined &&
         task.status !== "TO_VALIDATE" &&
         task.status !== "DONE"
       ) {
-        data.status = "TO_VALIDATE";
+        if (isCreator) {
+          data.status = "DONE";
+          data.completedAt = new Date();
+        } else {
+          data.status = "TO_VALIDATE";
+        }
       }
     }
 
@@ -168,8 +180,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (wantsManagedEdit && !canManage) {
       return NextResponse.json(
         {
-          error:
-            "Seuls les administrateurs, ou le manager qui a créé cette tâche, peuvent la modifier.",
+          error: "Seuls le propriétaire de l'entreprise ou le créateur de la tâche peuvent la modifier.",
         },
         { status: 403 }
       );
@@ -395,7 +406,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 // notifications) — SQLite here has no ON DELETE CASCADE configured, so
 // this is done explicitly in one transaction. Same rule as editing a
 // task's structural fields — see the PATCH handler's function comment:
-// any admin, or a manager but only on a task they created.
+// only the company's owner or this task's own creator.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { agent, error } = await requireAgentEnsured();
   if (error) return error;
@@ -407,12 +418,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: "Tâche introuvable." }, { status: 404 });
     }
 
-    const canManage = agent!.role === "ADMIN" || (agent!.role === "MANAGER" && task.creatorId === agent!.id);
+    const isOwner = agent!.userId === agent!.ownerId;
+    const canManage = isOwner || task.creatorId === agent!.id;
     if (!canManage) {
       return NextResponse.json(
         {
-          error:
-            "Seuls les administrateurs, ou le manager qui a créé cette tâche, peuvent la supprimer.",
+          error: "Seuls le propriétaire de l'entreprise ou le créateur de la tâche peuvent la supprimer.",
         },
         { status: 403 }
       );

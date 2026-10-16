@@ -170,6 +170,25 @@ model Group {
   creatorId String?
   creator   Agent?   @relation("GroupCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
+  // Nested hierarchy ("organisation d'entreprise" — département > service
+  // > ...): a group can itself belong to a larger group. Self-relation,
+  // SetNull on delete so removing a parent department doesn't cascade-
+  // delete the services it contains, it just orphans them back to
+  // top-level. A task assigned to a parent group does NOT automatically
+  // reach its children's members — see Task.assignedGroups's own comment:
+  // only this group's own direct `agents` count, exactly as before this
+  // field existed.
+  parentId String?
+  parent   Group?   @relation("GroupHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Group[]  @relation("GroupHierarchy")
+
+  // This group's "chef" — see PATCH/POST /api/groups, which auto-promotes
+  // a plain MEMBER appointed here to MANAGER (never a demotion: an
+  // existing ADMIN/MANAGER keeps their role). Nullable/SetNull: a group
+  // can be leaderless, and survives its leader leaving the company.
+  leaderId String?
+  leader   Agent?   @relation("GroupLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+
   agents Agent[]
   // Tasks explicitly assigned to this group (the group chip was used on
   // that task, not merely "some of its members happen to be individually
@@ -259,15 +278,29 @@ model Agent {
   // themselves.
   canManageSubscription Boolean @default(false)
 
+  // Hex color (e.g. "#2a6f4a") this agent picked for their own avatar/
+  // initials circle — see PATCH /api/account/color ("Mon compte") and
+  // assignAgentColors() in lib/colors.ts, which derives a stable, unique
+  // fallback for whoever's color stays null (every agent reads as having
+  // a color, whether or not they ever picked one themselves). The
+  // `@@unique([companyId, color])` below is the hard guarantee behind
+  // "les couleurs attribuées aux utilisateurs sont uniques" — two agents
+  // of the same company can never both have the same STORED color
+  // (Postgres treats multiple NULLs as distinct, so any number of agents
+  // without one yet is fine).
+  color String?
+
   createdTasks    Task[]             @relation("TaskCreator")
   createdGroups   Group[]            @relation("GroupCreator")
   createdProjects Project[]          @relation("ProjectCreator")
+  ledGroups       Group[]            @relation("GroupLeader")
   assignments     Assignment[]
   comments        Comment[]
   notifications   Notification[]
   pushSubscriptions PushSubscription[]
 
   @@unique([userId, companyId])
+  @@unique([companyId, color])
   @@map("agents")
 }
 

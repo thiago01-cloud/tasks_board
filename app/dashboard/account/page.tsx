@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { pageTitle } from "@/lib/constants";
+import { assignAgentColors, AGENT_COLOR_PALETTE } from "@/lib/colors";
 import AccountForm from "./AccountForm";
 import PasswordForm from "./PasswordForm";
 import PushNotificationsCard from "./PushNotificationsCard";
+import ColorPickerCard from "./ColorPickerCard";
 
 export const metadata = {
   title: pageTitle("Mon compte"),
@@ -20,6 +23,25 @@ export const metadata = {
 export default async function AccountPage() {
   const agent = await getCurrentAgent();
   if (!agent) redirect("/login");
+
+  // Color is per-Agent, not part of the session — see Agent.color in
+  // prisma/schema.prisma — and getCurrentAgent() doesn't carry it, so the
+  // whole company's agents are read directly here, same whole-company
+  // reasoning as app/dashboard/team/page.tsx's own colorMap: uniqueness
+  // ("les couleurs attribuées aux utilisateurs sont uniques") only means
+  // something when every agent who might collide is considered together,
+  // and the picker needs to know which palette colors are already taken
+  // by someone ELSE so it can grey those out. Can be empty/missing (an
+  // owner who never got an Agent record — see getCurrentAgent()'s own
+  // comment on agent.id); the color card just doesn't apply to that edge
+  // case.
+  const companyAgentColors = agent.id
+    ? await prisma.agent.findMany({ where: { companyId: agent.companyId }, select: { id: true, color: true } })
+    : [];
+  const colorMap = assignAgentColors(companyAgentColors);
+  const takenByOthers = AGENT_COLOR_PALETTE.filter((swatch) =>
+    companyAgentColors.some((a) => a.id !== agent.id && a.color === swatch)
+  );
 
   return (
     <div>
@@ -44,6 +66,14 @@ export default async function AccountPage() {
         <h3 style={{ marginTop: 0 }}>Mot de passe</h3>
         <PasswordForm />
       </div>
+
+      {agent.id && (
+        <ColorPickerCard
+          effectiveColor={colorMap.get(agent.id)!}
+          initialColor={companyAgentColors.find((a) => a.id === agent.id)?.color ?? null}
+          takenByOthers={takenByOthers}
+        />
+      )}
 
       <PushNotificationsCard />
     </div>

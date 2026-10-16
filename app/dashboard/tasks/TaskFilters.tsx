@@ -1,8 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/enums";
-import { useTaskFilterNavigate } from "./TaskNavigation";
+import { TASK_PRIORITIES, TASK_PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS } from "@/lib/enums";
+import { useTaskFilterNavigate, TASK_FILTERS_STORAGE_KEY } from "./TaskNavigation";
 
 type Member = { id: string; name: string };
 type Group = { id: string; name: string };
@@ -39,7 +39,7 @@ export default function TaskFilters({
   currentAgentId: string | null;
   members: Member[];
   groups: Group[];
-  filters: { assignee: string; priority: string; group: string };
+  filters: { assignee: string; priority: string; group: string; status: string };
 }) {
   const pathname = usePathname();
   // Routed through TaskNavigationProvider (see page.tsx) instead of
@@ -53,6 +53,7 @@ export default function TaskFilters({
     if (next.assignee) params.set("assignee", next.assignee);
     if (next.priority) params.set("priority", next.priority);
     if (next.group) params.set("group", next.group);
+    if (next.status) params.set("status", next.status);
     const qs = params.toString();
     navigate(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -60,8 +61,22 @@ export default function TaskFilters({
   // "all" is assigné's own neutral value (see the comment above) — it
   // must NOT count as an active filter, or the reset button would show
   // permanently as soon as the cascade (or an explicit pick) lands there.
-  const hasFilters = (!!filters.assignee && filters.assignee !== "all") || !!filters.priority || !!filters.group;
+  const hasFilters =
+    (!!filters.assignee && filters.assignee !== "all") || !!filters.priority || !!filters.group || !!filters.status;
   const otherMembers = members.filter((m) => m.id !== currentAgentId);
+
+  // "Réinitialiser" also forgets the remembered filters (see FilterMemory
+  // in TaskNavigation.tsx) — otherwise the very next bare visit to this
+  // page would immediately restore the filters you just deliberately
+  // cleared, making the button look like it didn't do anything.
+  function handleReset() {
+    try {
+      window.localStorage.removeItem(TASK_FILTERS_STORAGE_KEY);
+    } catch {
+      // Private browsing / storage disabled — nothing to clear.
+    }
+    navigate(pathname);
+  }
 
   return (
     <div className="task-filters">
@@ -109,8 +124,22 @@ export default function TaskFilters({
         ))}
       </select>
 
+      <select
+        className="task-filter-select"
+        aria-label="Filtrer par statut"
+        value={filters.status}
+        onChange={(e) => setParam("status", e.target.value)}
+      >
+        <option value="">Tous les statuts</option>
+        {TASK_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {s === "TO_VALIDATE" ? "En attente de validation" : TASK_STATUS_LABELS[s]}
+          </option>
+        ))}
+      </select>
+
       {hasFilters && (
-        <button type="button" className="task-filter-reset" onClick={() => navigate(pathname)}>
+        <button type="button" className="task-filter-reset" onClick={handleReset}>
           Réinitialiser
         </button>
       )}

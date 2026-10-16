@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageAgent, canManageAccount } from "@/lib/agents";
+import { assignAgentColors } from "@/lib/colors";
 import { pageTitle } from "@/lib/constants";
 import TeamMemberDetail from "./TeamMemberDetail";
 
@@ -38,6 +39,16 @@ export default async function TeamMemberPage({ params }: { params: Promise<{ id:
   // actionless page, send it straight there.
   if (member.userId === agent.userId) redirect("/dashboard/account");
 
+  // Same whole-company color assignment as app/dashboard/team/page.tsx —
+  // this page only renders one member, but their color still has to be
+  // computed against everyone else's, or uniqueness wouldn't mean
+  // anything (see assignAgentColors()'s own comment in lib/colors.ts).
+  const companyAgentColors = await prisma.agent.findMany({
+    where: { companyId: agent.companyId },
+    select: { id: true, color: true },
+  });
+  const colorMap = assignAgentColors(companyAgentColors);
+
   return (
     <TeamMemberDetail
       agent={{
@@ -51,6 +62,7 @@ export default async function TeamMemberPage({ params }: { params: Promise<{ id:
         role: member.role,
         groupNames: member.groups.map((g) => g.name),
         canManageSubscription: member.canManageSubscription,
+        color: colorMap.get(member.id)!,
       }}
       canManage={canManageAgent(agent, member, agent.ownerId)}
       canDelete={isAdmin && canManageAgent(agent, member, agent.ownerId)}

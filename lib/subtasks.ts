@@ -25,21 +25,28 @@ export function computeProgress(subtasks: { weight: number; done: boolean }[]): 
 // Data to pass to `tx.task.update` whenever a subtask change moves the
 // parent task's progress — always carries the new `progress`, and also
 // flips `status` to TO_VALIDATE the moment it reaches 100%, mirroring
-// PATCH /api/tasks/[id]'s rule for the manual slider. Not `completedAt`
-// yet, and not straight to DONE either — DONE is now reserved for once
-// the task's creator (or an admin fallback — see canValidateTask() in
-// lib/auth.ts) actually validates it, which is also the moment
-// `completedAt` gets set (see PATCH /api/tasks/[id]); reaching 100% only
-// queues it up for that review. Deliberately one-directional: progress
-// dropping back down later (e.g. a subtask reweighted or deleted after
-// the task was auto-queued) never reopens it — only the forward "just
-// finished" transition is automatic. Skipped once already TO_VALIDATE or
-// DONE, so re-toggling subtasks at 100% doesn't keep re-queuing it.
+// PATCH /api/tasks/[id]'s rule for the manual slider. DONE is normally
+// reserved for once the task's creator (or an admin fallback — see
+// canValidateTask() in lib/auth.ts) actually validates it, which is also
+// the moment `completedAt` gets set; reaching 100% only queues it up for
+// that review. The one exception is `isActorCreator`: when whoever just
+// toggled the subtask IS the task's own creator, there's nobody else left
+// to validate it against, so this goes straight to DONE (with
+// `completedAt`) instead of queuing it — same rule PATCH /api/tasks/[id]
+// applies to the manual progress slider. Deliberately one-directional
+// either way: progress dropping back down later (e.g. a subtask
+// reweighted or deleted after the task was auto-queued/completed) never
+// reopens it. Skipped once already TO_VALIDATE or DONE, so re-toggling
+// subtasks at 100% doesn't keep re-queuing it.
 export function taskUpdateForProgress(
   nextProgress: number,
-  currentStatus: string
-): { progress: number; status?: string } {
+  currentStatus: string,
+  isActorCreator = false
+): { progress: number; status?: string; completedAt?: Date } {
   if (nextProgress === 100 && currentStatus !== "TO_VALIDATE" && currentStatus !== "DONE") {
+    if (isActorCreator) {
+      return { progress: nextProgress, status: "DONE", completedAt: new Date() };
+    }
     return { progress: nextProgress, status: "TO_VALIDATE" };
   }
   return { progress: nextProgress };

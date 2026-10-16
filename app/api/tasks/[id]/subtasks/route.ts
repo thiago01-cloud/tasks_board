@@ -64,7 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const nextProgress = computeProgress(all.map((s, i) => ({ weight: weights[i], done: s.done })));
       if (nextProgress !== task.progress) {
-        const update = taskUpdateForProgress(nextProgress, task.status);
+        const update = taskUpdateForProgress(nextProgress, task.status, task.creatorId === agent!.id);
         await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));
@@ -157,7 +157,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       const nextProgress = computeProgress(task.subtasks.map((s) => ({ weight: parsed[s.id], done: s.done })));
       if (nextProgress !== task.progress) {
-        const update = taskUpdateForProgress(nextProgress, task.status);
+        const update = taskUpdateForProgress(nextProgress, task.status, task.creatorId === agent!.id);
         await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));

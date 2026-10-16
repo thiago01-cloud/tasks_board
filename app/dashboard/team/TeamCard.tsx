@@ -19,6 +19,11 @@ type TeamMember = {
   // can tell whether a teammate will actually receive push notifications
   // for the tasks they're linked to, as opposed to just the in-app bell.
   pushEnabled: boolean;
+  // Already resolved by page.tsx's assignAgentColors() (lib/colors.ts)
+  // over the WHOLE company at once — that's the only way to guarantee no
+  // two teammates show the same color, so this is never computed here
+  // from `agent` alone.
+  color: string;
 };
 
 // Plain summary card — every action that used to live here directly
@@ -49,7 +54,9 @@ export default function TeamCard({
   return (
     <div className="card team-card">
       <div className="team-card-top">
-        <div className="team-card-avatar">{initials(agent.firstName, agent.lastName)}</div>
+        <div className="team-card-avatar" style={{ background: agent.color, color: "white" }}>
+          {initials(agent.firstName, agent.lastName)}
+        </div>
         <div className="team-card-identity">
           <p className="team-card-name">
             {agent.firstName} {agent.lastName}

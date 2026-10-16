@@ -2,28 +2,32 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAgent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { assignAgentColors } from "@/lib/colors";
 import TaskBoard from "./TaskBoard";
-import { TaskNavigationProvider, TaskLoadingIndicator } from "./TaskNavigation";
+import { TaskNavigationProvider, TaskLoadingIndicator, FilterMemory } from "./TaskNavigation";
 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ assignee?: string; priority?: string; group?: string }>;
+  searchParams: Promise<{ assignee?: string; priority?: string; group?: string; status?: string }>;
 }) {
   const agent = await getCurrentAgent();
   // Rare case: valid session cookie, but the agent/company/user it points
   // at was deleted in the meantime — see dashboard/layout.tsx's own guard.
   if (!agent) redirect("/login");
 
-  const { assignee, priority, group } = await searchParams;
+  const { assignee, priority, group, status } = await searchParams;
   // Presence, not truthiness: an explicit "Tous les membres" pick writes
   // ?assignee=all (see below and TaskFilters.tsx), so it shows up here as
   // a defined-but-different-from-the-cascade value, never as "absent".
-  // Checking `assignee || priority || group` instead would treat that
-  // explicit choice the same as nothing having been touched yet, and the
-  // cascade below would keep overwriting it back to "Moi"/"Créé par
-  // moi" — which is exactly the bug this guarded against.
-  const hasExplicitFilter = assignee !== undefined || priority !== undefined || group !== undefined;
+  // Checking `assignee || priority || group || status` instead would
+  // treat that explicit choice the same as nothing having been touched
+  // yet, and the cascade below would keep overwriting it back to
+  // "Moi"/"Créé par moi" — which is exactly the bug this guarded against.
+  const hasExplicitFilter =
+    assignee !== undefined || priority !== undefined || group !== undefined || status !== undefined;
+
+  const isManagerOrAdmin = agent!.role === "ADMIN" || agent!.role === "MANAGER";
 
   // The "assigné" dropdown's own value — never left out of sync with what
   // actually gets filtered below. It carries one of four kinds of value:
@@ -34,12 +38,13 @@ export default async function TasksPage({
   let assigneeFilterValue: string;
   let effectiveAssignee = "";
   let filterByCreator = false;
-  let defaultView: "assigned" | "created" | "all" | null = null;
+  let effectiveStatus = "";
+  let defaultView: "assigned" | "created" | "all" | "to_validate" | null = null;
 
   if (hasExplicitFilter) {
-    // A manually-typed/bookmarked URL could still set priority or group
-    // without ever touching assignee — treat that missing assignee the
-    // same as an explicit "all" rather than re-running the cascade for
+    // A manually-typed/bookmarked URL could still set priority, group or
+    // status without ever touching assignee — treat that missing assignee
+    // the same as an explicit "all" rather than re-running the cascade for
     // just that one dimension.
     assigneeFilterValue = assignee ?? "all";
     if (assigneeFilterValue === "created") {
@@ -47,34 +52,49 @@ export default async function TasksPage({
     } else if (assigneeFilterValue !== "all") {
       effectiveAssignee = assigneeFilterValue;
     }
+    effectiveStatus = status || "";
   } else if (agent!.id) {
     // No filter at all yet (a fresh visit to the page): pick the most
-    // useful starting view automatically, and make the dropdown reflect
+    // useful starting view automatically, and make the dropdowns reflect
     // it too, not just the board —
-    //   1. tasks assigned to the signed-in agent, if there are any → the
-    //      dropdown selects "Moi";
+    //   0. for a manager/admin, anything company-wide waiting on
+    //      validation takes priority over everything else below — that's
+    //      the one thing only they can act on, so it's surfaced before
+    //      even their own assigned/created tasks;
+    //   1. otherwise tasks assigned to the signed-in agent, if there are
+    //      any → the dropdown selects "Moi";
     //   2. otherwise tasks they created themselves, if there are any →
     //      the dropdown selects "Créé par moi";
     //   3. otherwise every task in the company → the dropdown selects
     //      "Tous les membres".
-    const assignedCount = await prisma.task.count({
-      where: { companyId: agent!.companyId, assignments: { some: { agentId: agent!.id } } },
-    });
-    if (assignedCount > 0) {
-      effectiveAssignee = agent!.id;
-      assigneeFilterValue = agent!.id;
-      defaultView = "assigned";
+    const toValidateCount = isManagerOrAdmin
+      ? await prisma.task.count({ where: { companyId: agent!.companyId, status: "TO_VALIDATE" } })
+      : 0;
+
+    if (toValidateCount > 0) {
+      assigneeFilterValue = "all";
+      effectiveStatus = "TO_VALIDATE";
+      defaultView = "to_validate";
     } else {
-      const createdCount = await prisma.task.count({
-        where: { companyId: agent!.companyId, creatorId: agent!.id },
+      const assignedCount = await prisma.task.count({
+        where: { companyId: agent!.companyId, assignments: { some: { agentId: agent!.id } } },
       });
-      if (createdCount > 0) {
-        filterByCreator = true;
-        assigneeFilterValue = "created";
-        defaultView = "created";
+      if (assignedCount > 0) {
+        effectiveAssignee = agent!.id;
+        assigneeFilterValue = agent!.id;
+        defaultView = "assigned";
       } else {
-        assigneeFilterValue = "all";
-        defaultView = "all";
+        const createdCount = await prisma.task.count({
+          where: { companyId: agent!.companyId, creatorId: agent!.id },
+        });
+        if (createdCount > 0) {
+          filterByCreator = true;
+          assigneeFilterValue = "created";
+          defaultView = "created";
+        } else {
+          assigneeFilterValue = "all";
+          defaultView = "all";
+        }
       }
     }
   } else {
@@ -82,6 +102,21 @@ export default async function TasksPage({
     // getCurrentAgent()'s own comment) and nothing to base a cascade on.
     assigneeFilterValue = "all";
   }
+
+  // What TaskFilters.tsx's "Garder en mémoire les filtres" persistence
+  // (see FilterMemory in TaskNavigation.tsx) saves for next visit — only
+  // ever the filters the person actually picked, never a cascade default
+  // (including the "to_validate" one above): otherwise a view chosen for
+  // you today (because nothing else applied yet) could outlive the
+  // conditions that produced it and get stuck showing forever.
+  const rememberedParams = new URLSearchParams();
+  if (hasExplicitFilter) {
+    rememberedParams.set("assignee", assignee ?? "all");
+    if (priority) rememberedParams.set("priority", priority);
+    if (group) rememberedParams.set("group", group);
+    if (status) rememberedParams.set("status", status);
+  }
+  const rememberedQuery = rememberedParams.toString();
 
   const [tasks, members, groups] = await Promise.all([
     prisma.task.findMany({
@@ -91,6 +126,7 @@ export default async function TasksPage({
         ...(filterByCreator ? { creatorId: agent!.id ?? "" } : {}),
         ...(priority ? { priority } : {}),
         ...(group ? { assignedGroups: { some: { id: group } } } : {}),
+        ...(effectiveStatus ? { status: effectiveStatus } : {}),
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -110,7 +146,7 @@ export default async function TasksPage({
     prisma.agent.findMany({
       where: { companyId: agent!.companyId },
       orderBy: { joinedAt: "asc" },
-      select: { id: true, user: { select: { firstName: true, lastName: true } } },
+      select: { id: true, color: true, user: { select: { firstName: true, lastName: true } } },
     }),
     // For the "groupes" filter dropdown, same reasoning.
     prisma.group.findMany({
@@ -119,6 +155,13 @@ export default async function TasksPage({
       select: { id: true, name: true },
     }),
   ]);
+
+  // Over every agent in the company (the "chaque membre" dropdown's own
+  // full list above), not just the ones assigned to a task currently on
+  // the board — same whole-company reasoning as
+  // app/dashboard/team/page.tsx's own colorMap (see assignAgentColors()
+  // in lib/colors.ts).
+  const colorMap = assignAgentColors(members);
 
   const boardTasks = tasks.map((task) => ({
     id: task.id,
@@ -138,6 +181,7 @@ export default async function TasksPage({
       id: a.agentId,
       firstName: a.agent.user.firstName,
       lastName: a.agent.user.lastName,
+      color: colorMap.get(a.agentId) || "#6b7280",
     })),
   }));
 
@@ -148,6 +192,7 @@ export default async function TasksPage({
     // provider rather than local state in either piece.
     <TaskNavigationProvider>
       <div>
+        <FilterMemory hasExplicitFilter={hasExplicitFilter} queryString={rememberedQuery} />
         <div className="page-header">
           <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
             Tâches
@@ -165,7 +210,7 @@ export default async function TasksPage({
           currentAgentId={agent!.id}
           members={members.map((m) => ({ id: m.id, name: `${m.user.firstName} ${m.user.lastName}` }))}
           groups={groups}
-          filters={{ assignee: assigneeFilterValue, priority: priority || "", group: group || "" }}
+          filters={{ assignee: assigneeFilterValue, priority: priority || "", group: group || "", status: effectiveStatus }}
           defaultView={defaultView}
         />
       </div>

@@ -403,7 +403,12 @@ input, select, textarea, button {
      mobile before the inner scroller ever gets a chance to do its job. */
   min-width: 0;
   padding: 32px 40px;
-  max-width: 1140px;
+  /* Used to cap out at 1140px, leaving a lot of unused space on wider
+     screens — especially noticeable on the task board (5 columns need
+     all the room they can get). flex: 1 above already keeps this from
+     growing past whatever's actually free next to the sidebar, so there's
+     no need for a hard ceiling of its own anymore. */
+  max-width: 100%;
 }
 
 .page-header {
@@ -901,6 +906,132 @@ input, select, textarea, button {
   gap: 8px;
 }
 
+/* ---------- Team page: Windows-Explorer-style folder browser ---------- */
+/* "Le menu équipe doit être organisé comme le système de dossier de
+   Windows" — see app/dashboard/team/TeamFolderBrowser.tsx. */
+
+.team-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: -6px 0 20px;
+}
+
+.team-breadcrumb a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.team-breadcrumb a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.team-breadcrumb-current {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.team-section-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+}
+
+/* Same 3→2→1 responsive step as .team-grid (see its own @media blocks
+   below) — a folder tile is roughly the same footprint as a member card. */
+.team-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.team-folder-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  /* A touch of the primary color on top is the only thing marking these
+     as "the highlighted, click-to-open kind" at a glance next to the
+     plain member cards below them (see TeamCard.tsx's .team-card) — the
+     product's own "les premiers groupes mis en évidence" ask. */
+  border-top: 3px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  min-width: 0;
+}
+
+.team-folder-tile-open {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.team-folder-tile-open:hover .team-folder-name {
+  color: var(--color-primary);
+}
+
+.team-folder-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.team-folder-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-folder-name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.team-folder-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-folder-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 /* ---------- Comments ---------- */
 
 .comment-list {
@@ -1388,7 +1519,8 @@ input, select, textarea, button {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .team-grid {
+  .team-grid,
+  .team-folder-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1473,7 +1605,8 @@ input, select, textarea, button {
   .field-grid-2-large,
   .field-grid-3,
   .field-grid-4,
-  .team-grid {
+  .team-grid,
+  .team-folder-grid {
     grid-template-columns: 1fr;
   }
 

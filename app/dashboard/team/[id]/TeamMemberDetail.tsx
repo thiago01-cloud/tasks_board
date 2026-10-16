@@ -21,6 +21,9 @@ type TeamMember = {
   role: string;
   groupNames: string[];
   canManageSubscription: boolean;
+  // Already resolved by page.tsx's assignAgentColors() (lib/colors.ts)
+  // over the whole company — see TeamCard.tsx's own comment.
+  color: string;
 };
 
 // An action row on this page — a short label/description on the left, one
@@ -246,12 +249,24 @@ export default function TeamMemberDetail({
     setEditError("");
 
     if (editRole !== agent.role) {
+      // The confirmation dialog must REPLACE the "Modifier le compte"
+      // modal, not stack on top of it (Modal.tsx and ConfirmProvider.tsx
+      // each render their own full-screen overlay, so leaving both open
+      // at once showed two darkened backdrops with the edit form still
+      // visible underneath). Closing it first, then reopening it if the
+      // change is cancelled, keeps exactly one modal on screen at a time
+      // — the fields themselves stay as the person left them either way,
+      // since closing doesn't reset any of this form's state.
+      setShowEditAccount(false);
       const ok = await confirm({
         title: `Changer le rôle de ${agent.firstName} ${agent.lastName} ?`,
         message: `${AGENT_ROLE_LABELS[agent.role] || agent.role} → ${AGENT_ROLE_LABELS[editRole] || editRole}.`,
         confirmLabel: "Changer le rôle",
       });
-      if (!ok) return;
+      if (!ok) {
+        setShowEditAccount(true);
+        return;
+      }
     }
 
     setEditLoading(true);
@@ -325,7 +340,10 @@ export default function TeamMemberDetail({
 
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div className="team-card-avatar" style={{ width: 54, height: 54, fontSize: 18, flexShrink: 0 }}>
+          <div
+            className="team-card-avatar"
+            style={{ width: 54, height: 54, fontSize: 18, flexShrink: 0, background: agent.color, color: "white" }}
+          >
             {initials(agent.firstName, agent.lastName)}
           </div>
           <div>

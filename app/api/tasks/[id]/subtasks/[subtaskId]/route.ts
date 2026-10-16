@@ -73,7 +73,7 @@ export async function PATCH(
       const nextSubtasks = task.subtasks.map((s) => (s.id === subtaskId ? { ...s, ...data } : s));
       const nextProgress = computeProgress(nextSubtasks);
       if (nextProgress !== task.progress) {
-        const update = taskUpdateForProgress(nextProgress, task.status);
+        const update = taskUpdateForProgress(nextProgress, task.status, task.creatorId === agent!.id);
         await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));
@@ -147,7 +147,7 @@ export async function DELETE(
 
       const nextProgress = computeProgress(remaining.map((s, i) => ({ weight: weights[i], done: s.done })));
       if (nextProgress !== task.progress) {
-        const update = taskUpdateForProgress(nextProgress, task.status);
+        const update = taskUpdateForProgress(nextProgress, task.status, task.creatorId === agent!.id);
         await tx.task.update({ where: { id }, data: update });
 
         const recipients = new Set(task.assignments.map((a) => a.agentId));

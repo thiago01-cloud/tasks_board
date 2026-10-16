@@ -1,3 +1,15 @@
+// SUPERSEDED — app/dashboard/team/page.tsx no longer imports this file.
+// "Le menu équipe doit être organisé comme le système de dossier de
+// Windows" replaced this always-expanded, indented tree with
+// TeamFolderBrowser.tsx's drill-down browsing (one level at a time, via
+// ?folder=<id>, with a breadcrumb back up) — the group CRUD logic below
+// (create/rename/re-parent/delete, leader auto-promotion, cycle
+// avoidance) was ported there rather than reused directly, since the tile
+// layout and the "no parent picker at creation — you're already inside
+// the folder you're creating into" rule don't fit this file's shape.
+// Left in place only as dead-code reference (no shell access on this
+// device to delete it outright) — safe to remove entirely if it's ever a
+// nuisance.
 "use client";
 
 import { useState } from "react";
@@ -5,7 +17,20 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ConfirmProvider";
 
-export type GroupItem = { id: string; name: string; memberIds: string[]; creatorId: string | null };
+export type GroupItem = {
+  id: string;
+  name: string;
+  memberIds: string[];
+  creatorId: string | null;
+  // "Organisation d'entreprise" hierarchy — a group can itself sit inside
+  // a larger one (département > service...) — see Group.parentId in
+  // prisma/schema.prisma. Null = top-level.
+  parentId: string | null;
+  // This group's "chef" — appointing one (see POST/PATCH /api/groups)
+  // auto-promotes a plain MEMBER to MANAGER, never a demotion.
+  leaderId: string | null;
+  leaderName: string | null;
+};
 export type MemberOption = { id: string; name: string };
 
 // Bare (not-in-".field") inputs used in the horizontal "create" row below
@@ -18,6 +43,28 @@ const inputStyle: CSSProperties = {
   background: "var(--color-surface)",
   color: "var(--color-text)",
 };
+
+const selectStyle: CSSProperties = { ...inputStyle, width: "100%" };
+
+// This group and everything nested under it, at any depth — used to keep
+// the "groupe parent" picker from offering a choice that would make a
+// group its own (in)direct ancestor (the server rejects it too, see
+// wouldCreateCycle() in lib/groups.ts, but filtering it out of the
+// dropdown is friendlier than a round-trip error).
+function descendantIds(groups: GroupItem[], rootId: string): Set<string> {
+  const result = new Set<string>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const g of groups) {
+      if (g.parentId && result.has(g.parentId) && !result.has(g.id)) {
+        result.add(g.id);
+        grew = true;
+      }
+    }
+  }
+  return result;
+}
 
 // Toggle "chips" rather than native checkboxes — the same pattern already
 // used for picking assignees on a task (AssigneePicker/.assignee-*), which
@@ -64,16 +111,97 @@ function MemberCheckboxes({
   );
 }
 
-// Inline edit panel for one existing group: rename + replace its member
-// list. Submitting always sends the full member set (see
-// PATCH /api/groups/[id] — it uses Prisma's `set`, not a diff).
+// Parent-group and chef pickers, shared by the create form and
+// GroupEditor below. `excludeParentIds` keeps a group (and its own
+// descendants, for the editor) out of its own "groupe parent" dropdown.
+function HierarchyFields({
+  idPrefix,
+  groups,
+  excludeParentIds,
+  parentId,
+  onParentChange,
+  members,
+  leaderId,
+  onLeaderChange,
+  disabled,
+}: {
+  idPrefix: string;
+  groups: GroupItem[];
+  excludeParentIds: Set<string>;
+  parentId: string;
+  onParentChange: (id: string) => void;
+  members: MemberOption[];
+  leaderId: string;
+  onLeaderChange: (id: string) => void;
+  disabled: boolean;
+}) {
+  const parentOptions = groups.filter((g) => !excludeParentIds.has(g.id));
+
+  return (
+    <div className="field-grid field-grid-2" style={{ marginBottom: 10 }}>
+      <div>
+        <label
+          htmlFor={`${idPrefix}-parent`}
+          style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 5 }}
+        >
+          Groupe parent (optionnel)
+        </label>
+        <select
+          id={`${idPrefix}-parent`}
+          value={parentId}
+          onChange={(e) => onParentChange(e.target.value)}
+          disabled={disabled || parentOptions.length === 0}
+          style={selectStyle}
+        >
+          <option value="">Aucun — groupe de premier niveau</option>
+          {parentOptions.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label
+          htmlFor={`${idPrefix}-leader`}
+          style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 5 }}
+        >
+          Chef de groupe (optionnel)
+        </label>
+        <select
+          id={`${idPrefix}-leader`}
+          value={leaderId}
+          onChange={(e) => onLeaderChange(e.target.value)}
+          disabled={disabled || members.length === 0}
+          style={selectStyle}
+        >
+          <option value="">Aucun chef désigné</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "var(--color-text-muted)" }}>
+          Un simple membre nommé chef devient automatiquement manager.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Inline edit panel for one existing group: rename, re-parent, replace its
+// member list and/or its chef. Submitting always sends the full member
+// set (see PATCH /api/groups/[id] — it uses Prisma's `set`, not a diff).
 function GroupEditor({
   group,
+  groups,
   members,
   onDone,
   onCancel,
 }: {
   group: GroupItem;
+  groups: GroupItem[];
   members: MemberOption[];
   onDone: () => void;
   onCancel: () => void;
@@ -81,11 +209,23 @@ function GroupEditor({
   const router = useRouter();
   const [name, setName] = useState(group.name);
   const [memberIds, setMemberIds] = useState<string[]>(group.memberIds);
+  const [parentId, setParentId] = useState(group.parentId || "");
+  const [leaderId, setLeaderId] = useState(group.leaderId || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function toggleMember(id: string) {
     setMemberIds((current) => (current.includes(id) ? current.filter((m) => m !== id) : [...current, id]));
+  }
+
+  // A chef who isn't already checked as a member gets added automatically
+  // — appointing someone as this group's leader without them belonging to
+  // it would be a confusing state to leave on screen.
+  function handleLeaderChange(id: string) {
+    setLeaderId(id);
+    if (id && !memberIds.includes(id)) {
+      setMemberIds((current) => [...current, id]);
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -102,7 +242,7 @@ function GroupEditor({
       const res = await fetch(`/api/groups/${group.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, memberIds }),
+        body: JSON.stringify({ name: trimmed, memberIds, parentId: parentId || null, leaderId: leaderId || null }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -130,6 +270,19 @@ function GroupEditor({
         <label htmlFor={`group-name-${group.id}`}>Nom du groupe</label>
         <input id={`group-name-${group.id}`} value={name} onChange={(e) => setName(e.target.value)} disabled={loading} />
       </div>
+
+      <HierarchyFields
+        idPrefix={`group-${group.id}`}
+        groups={groups}
+        excludeParentIds={descendantIds(groups, group.id)}
+        parentId={parentId}
+        onParentChange={setParentId}
+        members={members}
+        leaderId={leaderId}
+        onLeaderChange={handleLeaderChange}
+        disabled={loading}
+      />
+
       <div className="field" style={{ marginBottom: 10 }}>
         <label>Membres</label>
         <MemberCheckboxes members={members} selectedIds={memberIds} onToggle={toggleMember} disabled={loading} />
@@ -155,6 +308,66 @@ function GroupEditor({
   );
 }
 
+// One row in the nested tree, indented per depth — see renderTree() below.
+function GroupRow({
+  group,
+  depth,
+  canManageThis,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  group: GroupItem;
+  depth: number;
+  canManageThis: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  return (
+    <div className="group-list-row" style={{ marginLeft: depth * 22 }}>
+      <span className="group-list-name">
+        {depth > 0 && <span style={{ color: "var(--color-text-muted)" }}>↳ </span>}
+        {group.name}{" "}
+        <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+          ({group.memberIds.length} membre{group.memberIds.length > 1 ? "s" : ""})
+        </span>
+        {group.leaderName && (
+          <span className="badge" style={{ marginLeft: 8 }}>
+            Chef : {group.leaderName}
+          </span>
+        )}
+      </span>
+      {canManageThis && (
+        <div className="group-list-actions">
+          <button
+            type="button"
+            className="button-secondary button"
+            style={{ padding: "5px 10px", fontSize: 12.5 }}
+            onClick={onEdit}
+          >
+            Modifier
+          </button>
+          <button
+            type="button"
+            className="button-secondary button"
+            style={{
+              padding: "5px 10px",
+              fontSize: 12.5,
+              color: "var(--color-danger)",
+              borderColor: "var(--color-danger-tint)",
+            }}
+            onClick={onDelete}
+            disabled={deleting}
+          >
+            Supprimer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GroupManager({
   groups,
   members,
@@ -171,6 +384,8 @@ export default function GroupManager({
 
   const [name, setName] = useState("");
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [parentId, setParentId] = useState("");
+  const [leaderId, setLeaderId] = useState("");
   const [createError, setCreateError] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
 
@@ -180,6 +395,13 @@ export default function GroupManager({
 
   function toggleNewMember(id: string) {
     setMemberIds((current) => (current.includes(id) ? current.filter((m) => m !== id) : [...current, id]));
+  }
+
+  function handleNewLeaderChange(id: string) {
+    setLeaderId(id);
+    if (id && !memberIds.includes(id)) {
+      setMemberIds((current) => [...current, id]);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -192,7 +414,7 @@ export default function GroupManager({
       const res = await fetch("/api/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, memberIds }),
+        body: JSON.stringify({ name, memberIds, parentId: parentId || null, leaderId: leaderId || null }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -204,6 +426,8 @@ export default function GroupManager({
 
       setName("");
       setMemberIds([]);
+      setParentId("");
+      setLeaderId("");
       setCreateLoading(false);
       router.refresh();
     } catch {
@@ -215,7 +439,7 @@ export default function GroupManager({
   async function handleDelete(group: GroupItem) {
     const ok = await confirm({
       title: `Supprimer le groupe « ${group.name} » ?`,
-      message: "Les membres ne seront pas supprimés, juste retirés du groupe.",
+      message: "Les membres ne seront pas supprimés, juste retirés du groupe. Ses sous-groupes, s'il en a, repassent au premier niveau.",
       confirmLabel: "Supprimer",
       danger: true,
     });
@@ -240,6 +464,42 @@ export default function GroupManager({
     }
   }
 
+  // Depth-first: every top-level group, immediately followed by its own
+  // children (recursively) — this is what turns the flat list into a
+  // visually nested org chart (département > service > ...) via each
+  // row's indentation (see GroupRow's `depth`).
+  function renderTree(parentId: string | null, depth: number): React.ReactNode[] {
+    return groups
+      .filter((g) => (g.parentId || null) === parentId)
+      .flatMap((group) => {
+        const canManageThis = isAdmin || group.creatorId === currentAgentId;
+        const row =
+          editingId === group.id ? (
+            <GroupEditor
+              key={group.id}
+              group={group}
+              groups={groups}
+              members={members}
+              onDone={() => setEditingId(null)}
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
+            <GroupRow
+              key={group.id}
+              group={group}
+              depth={depth}
+              canManageThis={canManageThis}
+              onEdit={() => setEditingId(group.id)}
+              onDelete={() => handleDelete(group)}
+              deleting={deletingId === group.id}
+            />
+          );
+        return [row, ...renderTree(group.id, depth + 1)];
+      });
+  }
+
+  const tree = renderTree(null, 0);
+
   return (
     <div>
       {groups.length === 0 && (
@@ -248,61 +508,7 @@ export default function GroupManager({
         </p>
       )}
 
-      {groups.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-          {groups.map((group) => {
-            // Any admin can manage any group; a manager only the ones they
-            // created themselves — same rule enforced server-side in
-            // PATCH/DELETE /api/groups/[id].
-            const canManageThis = isAdmin || group.creatorId === currentAgentId;
-
-            return editingId === group.id ? (
-              <GroupEditor
-                key={group.id}
-                group={group}
-                members={members}
-                onDone={() => setEditingId(null)}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <div key={group.id} className="group-list-row">
-                <span className="group-list-name">
-                  {group.name}{" "}
-                  <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                    ({group.memberIds.length} membre{group.memberIds.length > 1 ? "s" : ""})
-                  </span>
-                </span>
-                {canManageThis && (
-                  <div className="group-list-actions">
-                    <button
-                      type="button"
-                      className="button-secondary button"
-                      style={{ padding: "5px 10px", fontSize: 12.5 }}
-                      onClick={() => setEditingId(group.id)}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary button"
-                      style={{
-                        padding: "5px 10px",
-                        fontSize: 12.5,
-                        color: "var(--color-danger)",
-                        borderColor: "var(--color-danger-tint)",
-                      }}
-                      onClick={() => handleDelete(group)}
-                      disabled={deletingId === group.id}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {groups.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>{tree}</div>}
 
       {deleteError && <p className="error-message">{deleteError}</p>}
 
@@ -322,6 +528,19 @@ export default function GroupManager({
             disabled={createLoading}
           />
         </div>
+
+        <HierarchyFields
+          idPrefix="new-group"
+          groups={groups}
+          excludeParentIds={new Set<string>()}
+          parentId={parentId}
+          onParentChange={setParentId}
+          members={members}
+          leaderId={leaderId}
+          onLeaderChange={handleNewLeaderChange}
+          disabled={createLoading}
+        />
+
         <div style={{ marginBottom: 10 }}>
           <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 5 }}>
             Membres

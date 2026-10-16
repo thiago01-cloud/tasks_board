@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
-import { validMemberIds } from "@/lib/groups";
+import { validMemberIds, promoteLeaderIfNeeded, wouldCreateCycle } from "@/lib/groups";
 
 // Renaming/deleting a group is reserved to any admin, or to the manager
 // who created it — same tier as tasks (see PATCH/DELETE
@@ -56,7 +56,55 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data.agents = { set: memberIds.map((mid) => ({ id: mid })) };
     }
 
-    await prisma.group.update({ where: { id }, data });
+    // "Un groupe peut contenir des groupes" — re-parenting into another
+    // group (or back to top-level with an explicit null). Rejected if it
+    // would make this group its own (in)direct ancestor (e.g. moving
+    // "Ventes" under "Ventes Nord", one of its own children).
+    if (body.parentId !== undefined) {
+      if (!body.parentId) {
+        data.parentId = null;
+      } else {
+        if (body.parentId === id) {
+          return NextResponse.json({ error: "Un groupe ne peut pas être son propre parent." }, { status: 400 });
+        }
+        const parent = await prisma.group.findUnique({ where: { id: body.parentId } });
+        if (!parent || parent.companyId !== agent!.companyId) {
+          return NextResponse.json({ error: "Groupe parent introuvable." }, { status: 400 });
+        }
+        if (await wouldCreateCycle(agent!.companyId, id, body.parentId)) {
+          return NextResponse.json(
+            { error: "Ce groupe contient déjà le groupe parent choisi — impossible de créer une boucle." },
+            { status: 400 }
+          );
+        }
+        data.parentId = parent.id;
+      }
+    }
+
+    // Appointing/changing this group's "chef" — see
+    // promoteLeaderIfNeeded() in lib/groups.ts for the MEMBER -> MANAGER
+    // auto-promotion this triggers (never a demotion, and a no-op when
+    // removing the chef entirely, i.e. body.leaderId is falsy).
+    let nextLeaderId: string | null | undefined;
+    if (body.leaderId !== undefined) {
+      if (!body.leaderId) {
+        nextLeaderId = null;
+      } else {
+        const [leader] = await validMemberIds(agent!.companyId, [body.leaderId]);
+        if (!leader) {
+          return NextResponse.json({ error: "Chef de groupe introuvable." }, { status: 400 });
+        }
+        nextLeaderId = leader;
+      }
+      data.leaderId = nextLeaderId;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.group.update({ where: { id }, data });
+      if (nextLeaderId) {
+        await promoteLeaderIfNeeded(tx, nextLeaderId);
+      }
+    });
     return NextResponse.json({ ok: true, memberIds });
   } catch (err) {
     console.error("PATCH /api/groups/[id] failed:", err);

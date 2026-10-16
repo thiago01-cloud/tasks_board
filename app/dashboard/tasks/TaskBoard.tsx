@@ -12,6 +12,10 @@ const DEFAULT_VIEW_NOTICES: Record<string, string> = {
   assigned: "Par défaut : tâches qui vous sont assignées.",
   created: "Aucune tâche ne vous est assignée — affichage des tâches que vous avez créées.",
   all: "Aucune tâche ne vous est assignée ni créée par vous — affichage de toutes les tâches.",
+  // Surfaced ahead of everything else for un manager/administrateur dès
+  // qu'au moins une tâche de l'entreprise attend une validation — voir
+  // page.tsx's cascade, étape 0.
+  to_validate: "Priorité : des tâches de l'entreprise sont en attente de validation.",
 };
 
 export default function TaskBoard({
@@ -26,8 +30,8 @@ export default function TaskBoard({
   currentAgentId: string | null;
   members: { id: string; name: string }[];
   groups: { id: string; name: string }[];
-  filters: { assignee: string; priority: string; group: string };
-  defaultView: "assigned" | "created" | "all" | null;
+  filters: { assignee: string; priority: string; group: string; status: string };
+  defaultView: "assigned" | "created" | "all" | "to_validate" | null;
 }) {
   const byStatus = new Map<string, BoardTask[]>(TASK_STATUSES.map((status) => [status, []]));
   for (const task of tasks) {

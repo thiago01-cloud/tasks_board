@@ -17,7 +17,11 @@ export type BoardTask = {
   hasImage: boolean;
   isRecurring: boolean;
   project: { id: string; name: string } | null;
-  assignees: { id: string; firstName: string; lastName: string }[];
+  // Already resolved by page.tsx's assignAgentColors() (lib/colors.ts)
+  // over the whole company — guarantees no two assignees shown here (or
+  // anywhere else — TeamCard.tsx, TeamMemberDetail.tsx) ever share a
+  // color.
+  assignees: { id: string; firstName: string; lastName: string; color: string }[];
 };
 
 function initials(firstName: string, lastName: string): string {
@@ -86,7 +90,12 @@ export default function TaskCard({ task }: { task: BoardTask }) {
       <div className="task-card-meta" style={{ marginTop: 10 }}>
         <div className="avatar-stack">
           {shownAssignees.map((a) => (
-            <span key={a.id} className="avatar-circle" title={`${a.firstName} ${a.lastName}`}>
+            <span
+              key={a.id}
+              className="avatar-circle"
+              style={{ background: a.color, color: "white" }}
+              title={`${a.firstName} ${a.lastName}`}
+            >
               {initials(a.firstName, a.lastName)}
             </span>
           ))}

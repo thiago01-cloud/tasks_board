@@ -42,7 +42,12 @@ export async function wouldCreateCycle(
   let currentId: string | null = candidateParentId;
   for (let depth = 0; currentId && depth < 50; depth++) {
     if (currentId === groupId) return true;
-    const current = await prisma.group.findUnique({
+    // Explicit annotation (not just inferred from the call) — without it,
+    // TS flags this as an implicit `any`: `current` feeds `currentId` at
+    // the end of the loop body, which this same call then reads back at
+    // the top of the next iteration, and the compiler won't resolve a
+    // type through that loop-carried cycle on its own (TS7022).
+    const current: { parentId: string | null; companyId: string } | null = await prisma.group.findUnique({
       where: { id: currentId },
       select: { parentId: true, companyId: true },
     });

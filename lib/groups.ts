@@ -74,3 +74,28 @@ export async function promoteLeaderIfNeeded(
     await tx.agent.update({ where: { id: leaderId }, data: { role: "MANAGER" } });
   }
 }
+
+// "Un manager est toujours rattaché à un groupe. On ne peut pas avoir de
+// manager sans groupe, sinon il manage quoi? S'il y a des managers sans
+// groupe, alors on le remet à l'état de membre." — the flip side of
+// promoteLeaderIfNeeded() above: being made a group's chef can only ever
+// promote (MEMBER -> MANAGER), so this is what keeps the other direction
+// honest. Call it, inside the same transaction, right after ANY change
+// that could leave an agent belonging to zero groups — removing them from
+// a group's member list, deleting a group outright, or setting their role
+// to MANAGER directly from "Modifier le compte" — and it quietly corrects
+// MANAGER back down to MEMBER only when that agent now has no group left
+// to manage. No-op otherwise (still has a group, or isn't a MANAGER to
+// begin with). Never touches ADMIN.
+export async function demoteGrouplessManager(
+  tx: Pick<typeof prisma, "agent">,
+  agentId: string
+): Promise<void> {
+  const agent = await tx.agent.findUnique({
+    where: { id: agentId },
+    select: { role: true, groups: { select: { id: true }, take: 1 } },
+  });
+  if (agent && agent.role === "MANAGER" && agent.groups.length === 0) {
+    await tx.agent.update({ where: { id: agentId }, data: { role: "MEMBER" } });
+  }
+}

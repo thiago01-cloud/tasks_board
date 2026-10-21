@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgentEnsured } from "@/lib/auth";
-import { validMemberIds, promoteLeaderIfNeeded, wouldCreateCycle } from "@/lib/groups";
+import { validMemberIds, promoteLeaderIfNeeded, wouldCreateCycle, demoteGrouplessManager } from "@/lib/groups";
 
 // Renaming/deleting a group is reserved to any admin, or to the manager
 // who created it — same tier as tasks (see PATCH/DELETE
@@ -20,7 +20,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   try {
     const { id } = await params;
-    const group = await prisma.group.findUnique({ where: { id } });
+    const group = await prisma.group.findUnique({
+      where: { id },
+      include: { agents: { select: { id: true } } },
+    });
     if (!group || group.companyId !== agent!.companyId) {
       return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
     }
@@ -48,8 +51,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     let memberIds: string[] | null = null;
+    // Whoever was on the group's old member list but isn't on the new
+    // one — see demoteGrouplessManager() in lib/groups.ts, run against
+    // each of them below once the new list is actually saved: removing a
+    // MANAGER's last group puts them back to MEMBER.
+    let removedMemberIds: string[] = [];
     if (body.memberIds !== undefined) {
       memberIds = await validMemberIds(agent!.companyId, body.memberIds);
+      const nextIds = new Set(memberIds);
+      removedMemberIds = group.agents.map((a) => a.id).filter((aid) => !nextIds.has(aid));
       // `set` replaces the relation's full member list in one go — exactly
       // what a checkbox list submitting "here's who should be in it now"
       // needs, as opposed to connect/disconnect which would require a diff.
@@ -104,6 +114,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (nextLeaderId) {
         await promoteLeaderIfNeeded(tx, nextLeaderId);
       }
+      for (const removedId of removedMemberIds) {
+        await demoteGrouplessManager(tx, removedId);
+      }
     });
     return NextResponse.json({ ok: true, memberIds });
   } catch (err) {
@@ -123,7 +136,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   try {
     const { id } = await params;
-    const group = await prisma.group.findUnique({ where: { id } });
+    const group = await prisma.group.findUnique({
+      where: { id },
+      include: { agents: { select: { id: true } } },
+    });
     if (!group || group.companyId !== agent!.companyId) {
       return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
     }
@@ -138,7 +154,17 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       );
     }
 
-    await prisma.group.delete({ where: { id } });
+    // Deleting the group cascades its membership away too (see this
+    // function's own leading comment, above) — so any of its members who
+    // are a MANAGER could end up with zero groups left once it's gone;
+    // see demoteGrouplessManager() in lib/groups.ts.
+    const memberIds = group.agents.map((a) => a.id);
+    await prisma.$transaction(async (tx) => {
+      await tx.group.delete({ where: { id } });
+      for (const memberId of memberIds) {
+        await demoteGrouplessManager(tx, memberId);
+      }
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/groups/[id] failed:", err);

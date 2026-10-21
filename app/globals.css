@@ -574,7 +574,7 @@ input, select, textarea, button {
 
 .task-board {
   display: grid;
-  /* 5 columns: TODO, IN_PROGRESS, BLOCKED, TO_VALIDATE, DONE — see
+  /* 5 columns: TODO, IN_PROGRESS, PAUSED, TO_VALIDATE, DONE — see
      TASK_STATUSES in lib/enums.ts, which TaskBoard.tsx maps over
      generically to build both the columns and this count. */
   grid-template-columns: repeat(5, minmax(0, 1fr));

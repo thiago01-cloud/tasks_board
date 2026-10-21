@@ -30,7 +30,21 @@ type ProjectData = {
   tasks: ProjectTask[];
 };
 
-export default function ProjectDetail({ project, canManage }: { project: ProjectData; canManage: boolean }) {
+export default function ProjectDetail({
+  project,
+  canManage,
+  canCreateTask,
+}: {
+  project: ProjectData;
+  canManage: boolean;
+  // "Les administrateurs doivent être capables d'ajouter des tâches au
+  // projet" — same admin-or-manager tier as every other task-creation
+  // entry point (see app/dashboard/tasks/new/page.tsx, the "+ Nouvelle
+  // tâche" button on the Tâches tab), deliberately not tied to
+  // `canManage` above (which is about editing/deleting THIS project, a
+  // separate permission — see canManageProject() in lib/projects.ts).
+  canCreateTask: boolean;
+}) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -117,7 +131,18 @@ export default function ProjectDetail({ project, canManage }: { project: Project
         )}
 
         <div style={{ borderTop: "1px solid var(--color-border)", marginTop: 20, paddingTop: 18 }}>
-          <h3 style={{ marginTop: 0 }}>Tâches ({project.tasks.length})</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <h3 style={{ margin: 0 }}>Tâches ({project.tasks.length})</h3>
+            {canCreateTask && (
+              <Link
+                href={`/dashboard/tasks/new?projectId=${project.id}`}
+                className="button"
+                style={{ padding: "6px 12px", fontSize: 13 }}
+              >
+                + Nouvelle tâche
+              </Link>
+            )}
+          </div>
           {project.tasks.length === 0 && (
             <p style={{ color: "var(--color-text-muted)", fontSize: 13.5 }}>
               Aucune tâche attachée à ce projet pour l&apos;instant.

@@ -58,6 +58,19 @@ export default function TaskFilters({
     navigate(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  // "Lorsqu'on change le filtre des membres... on réinitialise
+  // automatiquement les filtres" — switching WHO you're looking at (my
+  // tasks vs. someone else's, vs. everyone) changes what the other three
+  // dropdowns even mean, so unlike setParam() above (which deliberately
+  // carries the other dimensions along), this one drops priority/group/
+  // status entirely rather than merging them into the new URL.
+  function setAssignee(value: string) {
+    const params = new URLSearchParams();
+    if (value) params.set("assignee", value);
+    const qs = params.toString();
+    navigate(qs ? `${pathname}?${qs}` : pathname);
+  }
+
   // "all" is assigné's own neutral value (see the comment above) — it
   // must NOT count as an active filter, or the reset button would show
   // permanently as soon as the cascade (or an explicit pick) lands there.
@@ -84,7 +97,7 @@ export default function TaskFilters({
         className="task-filter-select"
         aria-label="Filtrer par membre assigné"
         value={filters.assignee}
-        onChange={(e) => setParam("assignee", e.target.value)}
+        onChange={(e) => setAssignee(e.target.value)}
       >
         <option value="all">Tous les membres</option>
         {currentAgentId && <option value={currentAgentId}>Moi</option>}

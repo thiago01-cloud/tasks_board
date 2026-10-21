@@ -57,10 +57,15 @@ export default async function TasksPage({
     // No filter at all yet (a fresh visit to the page): pick the most
     // useful starting view automatically, and make the dropdowns reflect
     // it too, not just the board —
-    //   0. for a manager/admin, anything company-wide waiting on
-    //      validation takes priority over everything else below — that's
-    //      the one thing only they can act on, so it's surfaced before
-    //      even their own assigned/created tasks;
+    //   0. for a manager/admin, anything waiting on validation among the
+    //      tasks THEY created takes priority over everything else below —
+    //      that's the one thing only they (as the creator — see
+    //      canValidateTask() in lib/auth.ts) can act on, so it's surfaced
+    //      before even their own assigned/created tasks. "Même pour un
+    //      administrateur, s'il n'a pas une tâche créée par lui en attente
+    //      de validation, on n'initialise pas la validation" — a
+    //      company-wide count would wrongly block this view behind other
+    //      people's pending validations the viewer can't even act on;
     //   1. otherwise tasks assigned to the signed-in agent, if there are
     //      any → the dropdown selects "Moi";
     //   2. otherwise tasks they created themselves, if there are any →
@@ -68,11 +73,18 @@ export default async function TasksPage({
     //   3. otherwise every task in the company → the dropdown selects
     //      "Tous les membres".
     const toValidateCount = isManagerOrAdmin
-      ? await prisma.task.count({ where: { companyId: agent!.companyId, status: "TO_VALIDATE" } })
+      ? await prisma.task.count({
+          where: { companyId: agent!.companyId, creatorId: agent!.id ?? "", status: "TO_VALIDATE" },
+        })
       : 0;
 
     if (toValidateCount > 0) {
-      assigneeFilterValue = "all";
+      // Scoped the same way the count just above was: "son fil de
+      // validation" is the tasks HE created that are waiting on HIM, not
+      // every pending validation in the company (most of which he has no
+      // right to act on anyway — see canValidateTask()).
+      filterByCreator = true;
+      assigneeFilterValue = "created";
       effectiveStatus = "TO_VALIDATE";
       defaultView = "to_validate";
     } else {

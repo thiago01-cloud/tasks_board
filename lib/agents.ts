@@ -38,11 +38,19 @@ export function flattenAgent(a: {
 // see the option on their own card anyway, see TeamCard.tsx's own `isMe`
 // check).
 export function canManageAgent(
-  actor: { role: string; id: string | null },
-  target: { userId: string; createdByAgentId: string | null },
+  actor: { role: string; id: string | null; userId: string },
+  target: { userId: string; createdByAgentId: string | null; role: string },
   ownerId: string
 ): boolean {
   if (target.userId === ownerId) return false;
+  // "Les administrateurs ne peuvent pas gérer les comptes d'autres
+  // administrateurs. La seule personne qui gère les comptes de tous les
+  // administrateurs, c'est le propriétaire." — sharing a login link again
+  // or removing the account outright is still managing that admin's
+  // account, so another ADMIN doesn't get a pass here either; only the
+  // owner (identified by userId, same as everywhere else — Agent.role
+  // never stores "OWNER") reaches past this for an admin target.
+  if (target.role === "ADMIN") return actor.userId === ownerId;
   return actor.role === "ADMIN" || (actor.role === "MANAGER" && target.createdByAgentId === actor.id);
 }
 
@@ -61,10 +69,16 @@ export function canManageAgent(
 // the only place role is simply never offered as a field to change.
 export function canManageAccount(
   actor: { userId: string; ownerId: string; role: string },
-  target: { userId: string }
+  target: { userId: string; role: string }
 ): boolean {
   if (target.userId === actor.userId) return false;
   const actorIsOwner = actor.userId === actor.ownerId;
   if (target.userId === actor.ownerId) return actorIsOwner;
+  // "Les administrateurs ne peuvent pas gérer les comptes d'autres
+  // administrateurs. La seule personne qui gère les comptes de tous les
+  // administrateurs, c'est le propriétaire." — a non-owner ADMIN target
+  // (the owner's own record is already handled above) is off limits to
+  // every other admin; only the owner reaches in here.
+  if (target.role === "ADMIN") return actorIsOwner;
   return actorIsOwner || actor.role === "ADMIN";
 }

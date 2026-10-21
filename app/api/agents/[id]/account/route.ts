@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAgent, type AgentRole } from "@/lib/auth";
 import { canManageAccount } from "@/lib/agents";
+import { demoteGrouplessManager } from "@/lib/groups";
 import { composeInternationalPhone } from "@/lib/phone";
 import { getCountry } from "@/lib/countries";
 
@@ -68,13 +69,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
   }
 
-  const [updatedUser] = await prisma.$transaction([
-    prisma.user.update({
-      where: { id: target.userId },
-      data: { firstName, lastName, country, phone, email },
-    }),
-    prisma.agent.update({ where: { id: target.id }, data: { role } }),
-  ]);
+  const updatedUser = await prisma.$transaction(async (tx) => {
+    const [user] = await Promise.all([
+      tx.user.update({
+        where: { id: target.userId },
+        data: { firstName, lastName, country, phone, email },
+      }),
+      tx.agent.update({ where: { id: target.id }, data: { role } }),
+    ]);
+    // "On ne peut pas avoir de manager sans groupe" — setting MANAGER
+    // directly from this form is the one path to that role that doesn't
+    // already go through a group (unlike being appointed a "chef" — see
+    // promoteLeaderIfNeeded() in lib/groups.ts), so it's the one place
+    // that needs this check applied right after the fact rather than
+    // relying on a later membership change to trigger it.
+    await demoteGrouplessManager(tx, target.id);
+    return user;
+  });
+
+  const finalAgent = await prisma.agent.findUnique({ where: { id: target.id }, select: { role: true } });
 
   return NextResponse.json({
     ok: true,
@@ -84,6 +97,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       phone: updatedUser.phone,
       email: updatedUser.email,
     },
-    role,
+    role: finalAgent?.role ?? role,
   });
 }

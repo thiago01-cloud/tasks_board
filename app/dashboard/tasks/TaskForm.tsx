@@ -13,10 +13,17 @@ export default function TaskForm({
   members,
   groups,
   projects,
+  defaultProjectId,
 }: {
   members: MemberOption[];
   groups: GroupOption[];
   projects: ProjectOption[];
+  // Pre-selects the project dropdown below — set when this form was
+  // opened from a project's own page (see
+  // app/dashboard/tasks/new/page.tsx's ?projectId and ProjectDetail.tsx's
+  // "+ Nouvelle tâche"). Left editable rather than locked: it's just a
+  // starting point, same as any other field here.
+  defaultProjectId?: string;
 }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -25,7 +32,7 @@ export default function TaskForm({
   const [dueDate, setDueDate] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(defaultProjectId || "");
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceState>(INITIAL_RECURRENCE_STATE);
   const [error, setError] = useState("");

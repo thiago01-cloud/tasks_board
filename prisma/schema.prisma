@@ -310,10 +310,19 @@ model Task {
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   title       String
   description String?
-  status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED"
+  status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "PAUSED" | "TO_VALIDATE" | "DONE" — was "BLOCKED" before the "tâche en pause" rename; see pausedAt below and scripts/rename-blocked-to-paused.js for the one-off data fix that relabels any row still holding the old value.
   priority    String    @default("NORMAL") // "LOW" | "NORMAL" | "HIGH" | "URGENT"
   progress    Int       @default(0) // 0-100, edited mainly while status is IN_PROGRESS; set to 100 automatically when status becomes DONE (and vice versa: reaching 100 forces status to DONE — see PATCH /api/tasks/[id] and the subtasks routes)
   dueDate     DateTime?
+  // Set the moment `status` becomes PAUSED, cleared the moment it leaves
+  // PAUSED again — "sans décompte, le timing s'arrête": while paused,
+  // `dueDate` is deliberately left untouched (frozen), and this is what
+  // lets PATCH /api/tasks/[id] measure how much time was actually left
+  // (dueDate - pausedAt) at the instant it was paused, so leaving PAUSED
+  // can add that same remaining time back on top of "now" to compute the
+  // new dueDate, instead of the deadline just silently having kept
+  // ticking the whole time it sat paused.
+  pausedAt    DateTime?
   // Set the moment `status` becomes DONE (by any path), cleared if it ever
   // moves away from DONE again — used to compare against `dueDate` for the
   // "on time / early / late" performance readout on a finished task (see

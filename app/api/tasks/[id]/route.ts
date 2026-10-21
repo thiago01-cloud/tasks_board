@@ -77,12 +77,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!TASK_STATUSES.includes(body.status)) {
         return NextResponse.json({ error: "Statut invalide." }, { status: 400 });
       }
-      // DONE is the one status nobody just "sets" — it's the outcome of
-      // validating a task that's already TO_VALIDATE (100% progress), and
-      // only its creator (or an admin fallback — see canValidateTask() in
-      // lib/auth.ts) gets to do that. Every other transition, including
-      // *into* TO_VALIDATE by hand, stays open to canWork above; only the
-      // last step is gated.
+      // "Les tâches que l'on a créées soi-même ne doivent plus passer en
+      // validation, elles doivent être validées directement" — same
+      // shortcut the automatic progress-100 path below (and
+      // taskUpdateForProgress in lib/subtasks.ts) already applies when the
+      // CREATOR is the one reaching 100% themselves: there's nobody else
+      // left to validate against, so manually flipping the status select
+      // (below) to "À valider" lands straight on DONE too, rather than
+      // queuing a review the creator would just end up granting themselves
+      // a moment later.
+      const effectiveStatus = body.status === "TO_VALIDATE" && isCreator ? "DONE" : body.status;
+      // DONE is the one status nobody just "sets" on a task that was never
+      // queued for it — a LITERAL request for DONE still has to come from
+      // an already-TO_VALIDATE task and from whoever can validate it (see
+      // canValidateTask() in lib/auth.ts). The substitution above is
+      // exempt from this guard on purpose: it isn't the client asking for
+      // DONE, it's this route deciding a TO_VALIDATE request needs no
+      // queue at all.
       if (body.status === "DONE") {
         if (task.status !== "TO_VALIDATE") {
           return NextResponse.json(
@@ -101,23 +112,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           );
         }
       }
-      data.status = body.status;
+      data.status = effectiveStatus;
       // Marking a task DONE means it's fully done — unless the caller also
       // sent an explicit progress value in the same request, snap it to
       // 100% so the two fields don't silently disagree. Skipped once the
       // task has subtasks: progress is then derived from their weights
       // (see lib/subtasks.ts), and DONE doesn't necessarily mean every
       // subtask is checked off, so it must not be forced here.
-      if (body.status === "DONE" && body.progress === undefined && task.subtasks.length === 0) {
+      if (effectiveStatus === "DONE" && body.progress === undefined && task.subtasks.length === 0) {
         data.progress = 100;
       }
       // `completedAt` tracks the moment the task was actually validated
       // (see schema.prisma) — set on the way in, cleared on the way out,
-      // and left alone on any other status change (e.g. TODO -> BLOCKED,
+      // and left alone on any other status change (e.g. TODO -> PAUSED,
       // or TO_VALIDATE -> IN_PROGRESS via a rejection).
-      if (body.status === "DONE" && task.status !== "DONE") {
+      if (effectiveStatus === "DONE" && task.status !== "DONE") {
         data.completedAt = new Date();
-      } else if (body.status !== "DONE" && task.status === "DONE") {
+      } else if (effectiveStatus !== "DONE" && task.status === "DONE") {
         data.completedAt = null;
       }
     }
@@ -162,6 +173,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         } else {
           data.status = "TO_VALIDATE";
         }
+      }
+    }
+
+    // "Le principe d'une tâche en pause, c'est que sans décompte, le
+    // timing s'arrête. Et lorsque la tâche quitte en pause, on recalcule
+    // la nouvelle deadline... en prenant le temps restant de la tâche
+    // lorsqu'elle est passée en pause, on l'ajoute au temps, au moment où
+    // on la remet à traiter." — checked once against whatever `data.status`
+    // ended up being (set by either block above — a direct status change,
+    // or the progress-100 auto-transition, never both in the same
+    // request), rather than duplicated in each: entering PAUSED just
+    // stamps `pausedAt` and otherwise leaves `dueDate` alone (that's the
+    // "freeze"); leaving PAUSED — by any path — is what actually
+    // recalculates it, from however much time was left
+    // (task.dueDate - task.pausedAt) at the moment it was frozen, added
+    // back on top of right now. No-op if the task had no deadline to
+    // begin with (nothing to recalculate), or if `pausedAt` is somehow
+    // already missing (shouldn't happen, but leaves `dueDate` untouched
+    // rather than guessing).
+    if (data.status !== undefined && data.status !== task.status) {
+      if (data.status === "PAUSED") {
+        data.pausedAt = new Date();
+      } else if (task.status === "PAUSED") {
+        if (task.dueDate && task.pausedAt) {
+          const remainingMs = task.dueDate.getTime() - task.pausedAt.getTime();
+          data.dueDate = new Date(Date.now() + remainingMs);
+        }
+        data.pausedAt = null;
       }
     }
 

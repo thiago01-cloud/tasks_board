@@ -37,12 +37,14 @@ export default function StatusIcon({
           <path d="M12 7.5v4.5l3 2" />
         </svg>
       );
-    case "BLOCKED":
-      // Octagon with a bar: stopped.
+    case "PAUSED":
+      // Circle with a pause glyph: the clock from IN_PROGRESS stops
+      // ticking — see Task.pausedAt in schema.prisma.
       return (
         <svg {...common}>
-          <path d="M8.5 3.5h7l5 5v7l-5 5h-7l-5-5v-7l5-5z" />
-          <path d="M8.5 12h7" />
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M10 8.5v7" />
+          <path d="M14 8.5v7" />
         </svg>
       );
     case "DONE":

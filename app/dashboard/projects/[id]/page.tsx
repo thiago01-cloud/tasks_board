@@ -31,6 +31,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   if (!project || project.companyId !== agent.companyId) notFound();
 
   const canManage = canManageProject(agent, project);
+  // Same tier as every other task-creation entry point (see
+  // app/dashboard/tasks/page.tsx's own "+ Nouvelle tâche" and
+  // app/dashboard/tasks/new/page.tsx's redirect guard) — deliberately
+  // not `canManage` above, which is about editing/deleting this project
+  // itself, a different permission.
+  const canCreateTask = agent.role === "ADMIN" || agent.role === "MANAGER";
 
   return (
     <div>
@@ -63,6 +69,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           })),
         }}
         canManage={canManage}
+        canCreateTask={canCreateTask}
       />
     </div>
   );

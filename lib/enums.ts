@@ -13,7 +13,11 @@ export const AGENT_ROLE_LABELS: Record<string, string> = {
 export const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: "À faire",
   IN_PROGRESS: "En cours",
-  BLOCKED: "Bloquée",
+  // Was "BLOCKED"/"Bloquée" — "sans décompte, le timing s'arrête" while a
+  // task sits here: see Task.pausedAt in schema.prisma and PATCH
+  // /api/tasks/[id] for the deadline recalculation that fires the moment
+  // it leaves this status again.
+  PAUSED: "En pause",
   // Reached automatically once progress hits 100% (manually or via
   // subtasks — see lib/subtasks.ts's taskUpdateForProgress) — not a final
   // state: the task's creator (or an admin, only if that creator has since
@@ -26,12 +30,12 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 // Board column order (left to right).
-export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "TO_VALIDATE", "DONE"] as const;
+export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "PAUSED", "TO_VALIDATE", "DONE"] as const;
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
   TODO: "#6b7280",
   IN_PROGRESS: "#2a3365",
-  BLOCKED: "#b3261e",
+  PAUSED: "#b3261e",
   TO_VALIDATE: "#c2760c",
   DONE: "#1a8a4c",
 };
